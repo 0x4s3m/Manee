@@ -11,3 +11,5 @@ scapy
 matplotlib
 prompt_toolkit
 playwright
+streamlit-lottie
+requests

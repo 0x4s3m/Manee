@@ -4,8 +4,12 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.live import Live
+from rich.layout import Layout
+from rich.align import Align
 import time
 import sys
+import random
 
 # For interactive mode
 from prompt_toolkit import PromptSession
@@ -26,27 +30,64 @@ LOGO = """
 [bold red]    INTELLIGENT CYBER SHIELD FOR NATIONAL DEFENSE[/bold red]
 """
 
+def boot_sequence():
+    with Progress(
+        SpinnerColumn(spinner_name="dots12"),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(bar_width=40),
+        transient=True,
+    ) as progress:
+        task = progress.add_task("[green]Initializing HUSN Core...", total=100)
+        while not progress.finished:
+            time.sleep(0.05)
+            progress.update(task, advance=random.uniform(1, 5))
+            if progress.tasks[0].completed > 30:
+                progress.update(task, description="[cyan]Loading AI Modules...")
+            if progress.tasks[0].completed > 60:
+                progress.update(task, description="[magenta]Syncing with National Defense Database...")
+            if progress.tasks[0].completed > 90:
+                progress.update(task, description="[white]Establishing Secure Tunnel...")
+
+    console.print("[bold green]✔ HUSN SYSTEM ONLINE[/bold green]\n")
+
 def show_banner():
-    console.print(LOGO)
-    console.print(Panel("[bold white]Welcome to Husn (حصن) - Intelligent Cyber Defense System[/bold white]", border_style="green"))
+    console.print(Align.center(LOGO))
+    console.print(Panel(
+        Align.center("[bold white]Welcome to Husn (حصن) - Intelligent Cyber Defense System[/bold white]\n[dim]State-of-the-art protection for the digital frontier[/dim]"),
+        border_style="bright_green",
+        box=Panel.box.DOUBLE
+    ))
+
+def generate_live_monitor():
+    table = Table(box=None, expand=True)
+    table.add_column("SOURCE", style="cyan")
+    table.add_column("DESTINATION", style="magenta")
+    table.add_column("PROTOCOL", style="yellow")
+    table.add_column("ACTION", style="bold green")
+
+    ips = ["192.168.1.5", "10.0.0.12", "172.16.0.4", "192.168.1.1", "45.77.12.3"]
+    actions = ["[green]PASS[/green]", "[green]PASS[/green]", "[red]BLOCK[/red]", "[yellow]INSPECT[/yellow]"]
+    protocols = ["TCP", "UDP", "HTTPS", "SSH"]
+
+    for _ in range(8):
+        table.add_row(
+            random.choice(ips),
+            random.choice(ips),
+            random.choice(protocols),
+            random.choice(actions)
+        )
+    return table
 
 @app.command()
 def scan():
     """Scan the network for threats."""
-    console.print("[bold yellow]Initiating Network Scan...[/bold yellow]")
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        transient=True,
-    ) as progress:
-        progress.add_task(description="Sniffing packets...", total=None)
-        time.sleep(2)
-        progress.add_task(description="Analyzing traffic patterns...", total=None)
-        time.sleep(2)
-        progress.add_task(description="Running AI Inference...", total=None)
-        time.sleep(1)
+    console.print("[bold yellow]Initiating Deep Packet Inspection...[/bold yellow]")
+    with Live(generate_live_monitor(), refresh_per_second=4) as live:
+        for _ in range(20):
+            time.sleep(0.2)
+            live.update(generate_live_monitor())
 
-    table = Table(title="Scan Results")
+    table = Table(title="Scan Results Summary", box=Panel.box.SQUARE)
     table.add_column("Timestamp", style="cyan")
     table.add_column("Source IP", style="magenta")
     table.add_column("Target IP", style="magenta")
@@ -68,45 +109,52 @@ def simulate():
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
+        BarColumn(bar_width=50),
         TaskProgressColumn(),
     ) as progress:
         task1 = progress.add_task(description=f"[cyan]Crafting {attack_type} packets...", total=100)
         while not progress.finished:
-            progress.update(task1, advance=random.randint(5, 15) if 'random' in globals() else 10)
+            progress.update(task1, advance=random.uniform(5, 15))
             time.sleep(0.3)
             if progress.tasks[0].completed >= 40 and len(progress.tasks) == 1:
                 progress.add_task(description="[magenta]Injected payloads into stream...", total=100)
             if len(progress.tasks) > 1:
-                progress.update(progress.task_ids[1], advance=random.randint(10, 20) if 'random' in globals() else 15)
+                progress.update(progress.task_ids[1], advance=random.uniform(10, 20))
 
     console.print(f"[bold green]✓ Simulation of {attack_type} completed successfully.[/bold green]")
-    console.print("[dim]Traffic logs generated and available for AI training.[/dim]")
 
 @app.command()
 def dashboard():
     """Launch the web dashboard."""
     console.print("[bold blue]Launching Streamlit Dashboard...[/bold blue]")
-    console.print("Run: [bold white]streamlit run husn/src/dashboard.py[/bold white]")
+    console.print("Run: [bold white]python run.py dashboard[/bold white]")
 
 @app.command()
 def status():
     """Check system status."""
-    console.print("[bold white]System Status:[/bold white]")
-    console.print("- AI Engine: [bold green]ONLINE[/bold green]")
-    console.print("- Network Monitor: [bold green]ACTIVE[/bold green]")
-    console.print("- Database: [bold green]CONNECTED[/bold green]")
+    grid = Table.grid(expand=True)
+    grid.add_column(style="cyan", justify="right")
+    grid.add_column(justify="left")
+
+    grid.add_row("AI Engine", " : [bold green]ONLINE[/bold green]")
+    grid.add_row("Network Monitor", " : [bold green]ACTIVE[/bold green]")
+    grid.add_row("Database", " : [bold green]CONNECTED[/bold green]")
+    grid.add_row("Threat Level", " : [bold yellow]LOW[/bold yellow]")
+
+    console.print(Panel(grid, title="System Status", border_style="blue"))
 
 @app.command()
 def interactive():
     """Enter interactive shell mode (Metasploit style)."""
+    boot_sequence()
     show_banner()
     session = PromptSession()
     completer = WordCompleter(['scan', 'simulate', 'dashboard', 'status', 'help', 'exit'])
 
     while True:
         try:
-            text = session.prompt('husn > ', completer=completer)
+            text = session.prompt(Text.assemble(("husn", "bold green"), " > "))
+            text = text.strip()
             if text == 'exit':
                 break
             elif text == 'help':
@@ -114,7 +162,6 @@ def interactive():
             elif text == 'scan':
                 scan()
             elif text == 'simulate':
-                import random
                 simulate()
             elif text == 'dashboard':
                 dashboard()

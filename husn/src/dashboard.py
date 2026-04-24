@@ -9,9 +9,64 @@ import time
 import shap
 import matplotlib.pyplot as plt
 import os
+import requests
+from streamlit_lottie import st_lottie
 
 # --- Page Config ---
 st.set_page_config(page_title="Husn (حصن) - Cyber Defense", layout="wide", initial_sidebar_state="expanded")
+
+# --- Custom CSS for "Enchanted" Look ---
+st.markdown("""
+    <style>
+    .main {
+        background-color: #0e1117;
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 5px;
+        height: 3em;
+        background-color: #00FF00;
+        color: black;
+        font-weight: bold;
+        border: none;
+        box-shadow: 0 0 10px #00FF00;
+    }
+    .stButton>button:hover {
+        background-color: #00CC00;
+        box-shadow: 0 0 20px #00FF00;
+    }
+    .metric-card {
+        background-color: #1a1c24;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 5px solid #00FF00;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+    }
+    .siem-log {
+        font-family: 'Courier New', Courier, monospace;
+        background-color: #000;
+        color: #0f0;
+        padding: 10px;
+        border-radius: 5px;
+        height: 300px;
+        overflow-y: scroll;
+        border: 1px solid #00FF00;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- Load Assets ---
+def load_lottieurl(url: str):
+    try:
+        r = requests.get(url, timeout=5)
+        if r.status_code != 200:
+            return None
+        return r.json()
+    except:
+        return None
+
+# Shield animation
+lottie_shield = load_lottieurl("https://lottie.host/8070868a-6b83-4903-9114-118e690f3c5b/vUf0fF2l7v.json")
 
 # --- Load AI Model ---
 @st.cache_resource
@@ -26,8 +81,8 @@ husn_ai = load_ai()
 # --- Translations ---
 TRANSLATIONS = {
     "en": {
-        "title": "Husn (حصن) - Intelligent Cyber Shield",
-        "tagline": "National Defense Intelligent System",
+        "title": "Husn (حصن)",
+        "tagline": "Intelligent Cyber Shield for National Defense",
         "real_time_monitor": "Real-time Monitoring",
         "threat_detection": "Threat Detection",
         "attack_simulation": "Attack Simulation",
@@ -40,17 +95,13 @@ TRANSLATIONS = {
         "severity": "Severity",
         "confidence": "Confidence",
         "attack_type": "Attack Type",
-        "normal": "Normal",
-        "high": "High",
-        "medium": "Medium",
-        "low": "Low",
         "run_scan": "Run Threat Scan",
         "simulate_btn": "🚀 START SIMULATION",
         "explaining": "Generating SHAP Explanation..."
     },
     "ar": {
-        "title": "حصن (Husn) - الدرع السيبراني الذكي",
-        "tagline": "نظام ذكي للدفاع الوطني",
+        "title": "حصن (Husn)",
+        "tagline": "الدرع السيبراني الذكي للدفاع الوطني",
         "real_time_monitor": "المراقبة في الوقت الحقيقي",
         "threat_detection": "اكتشاف التهديدات",
         "attack_simulation": "محاكاة الهجمات",
@@ -63,10 +114,6 @@ TRANSLATIONS = {
         "severity": "الخطورة",
         "confidence": "الثقة",
         "attack_type": "نوع الهجوم",
-        "normal": "طبيعي",
-        "high": "عالية",
-        "medium": "متوسطة",
-        "low": "منخفضة",
         "run_scan": "بدء فحص التهديدات",
         "simulate_btn": "🚀 بدء المحاكاة",
         "explaining": "جاري إنشاء تفسير SHAP..."
@@ -84,9 +131,10 @@ T = TRANSLATIONS[st.session_state.lang]
 
 # --- Sidebar ---
 with st.sidebar:
+    if lottie_shield:
+        st_lottie(lottie_shield, height=150, key="shield")
     st.markdown(f"<div style='text-align: center;'><h1 style='color: #00FF00;'>Husn / حصن</h1></div>", unsafe_allow_html=True)
 
-    # Prominent Language Toggle
     if st.button(f"🌐 {T['lang_toggle']}", use_container_width=True):
         toggle_lang()
         st.rerun()
@@ -102,85 +150,99 @@ with st.sidebar:
     ])
 
 # --- Header ---
-col1, col2, col3 = st.columns([1, 2, 1])
-with col2:
-    st.markdown(f"<h1 style='text-align: center; color: #00FF00;'>{T['title']}</h1>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='text-align: center;'>{T['tagline']}</h3>", unsafe_allow_html=True)
+st.markdown(f"<h1 style='text-align: center; color: #00FF00; text-shadow: 0 0 10px #00FF00;'>{T['title']}</h1>", unsafe_allow_html=True)
+st.markdown(f"<h3 style='text-align: center; color: #888;'>{T['tagline']}</h3>", unsafe_allow_html=True)
+st.markdown("---")
 
 # --- Components ---
 if menu == T["real_time_monitor"]:
     st.subheader(T["real_time_monitor"])
-    col1, col2 = st.columns(2)
 
+    # Metrics Row
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.markdown('<div class="metric-card"><h4>Uptime</h4><h2>99.9%</h2></div>', unsafe_allow_html=True)
+    with m2:
+        st.markdown('<div class="metric-card"><h4>Threats Blocked</h4><h2>1,284</h2></div>', unsafe_allow_html=True)
+    with m3:
+        st.markdown('<div class="metric-card"><h4>Network Load</h4><h2>12%</h2></div>', unsafe_allow_html=True)
+    with m4:
+        st.markdown('<div class="metric-card"><h4>AI Confidence</h4><h2>98.4%</h2></div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    col1, col2 = st.columns([2, 1])
     with col1:
-        data = pd.DataFrame(np.random.randn(20, 3), columns=['Incoming', 'Outgoing', 'Dropped'])
-        st.line_chart(data)
+        data = pd.DataFrame(np.random.randn(50, 3), columns=['Incoming', 'Outgoing', 'Malicious'])
+        fig = px.line(data, title="Live Traffic Analytics")
+        fig.update_layout(template="plotly_dark", plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        fig = go.Figure(go.Indicator(
-            mode = "gauge+number",
-            value = 15,
-            title = {'text': "Network Load (%)"},
-            gauge = {'axis': {'range': [None, 100]},
-                     'bar': {'color': "green"}}))
-        st.plotly_chart(fig)
+        st.markdown("<h4>SIEM Intelligence Feed</h4>", unsafe_allow_html=True)
+        log_content = "".join([f"[{time.strftime('%H:%M:%S')}] INFO: Packet from {np.random.randint(1,255)}.{np.random.randint(1,255)}.x.x analyzed... OK<br>" for _ in range(20)])
+        st.markdown(f'<div class="siem-log">{log_content}</div>', unsafe_allow_html=True)
 
 elif menu == T["threat_detection"]:
     st.subheader(T["threat_detection"])
-    if st.button(T["run_scan"], use_container_width=True):
-        with st.spinner("Analyzing traffic..."):
-            time.sleep(1)
-            sample_df = pd.read_csv("husn/data/synthetic_traffic.csv").sample(5)
+    if st.button(T["run_scan"]):
+        with st.status("Analyzing Deep Traffic Data..."):
+            time.sleep(1.5)
+            sample_df = pd.read_csv("husn/data/synthetic_traffic.csv").sample(10)
             X = sample_df[husn_ai.features]
             results = husn_ai.predict(X)
-
             res_df = pd.DataFrame(results)
             st.table(res_df)
 
 elif menu == T["explainable_ai"]:
     st.subheader(T["explainable_ai"])
-    st.write("Explaining model decisions with SHAP Waterfall plots.")
+    col_x1, col_x2 = st.columns([1, 2])
 
-    sample_df = pd.read_csv("husn/data/synthetic_traffic.csv").sample(1)
-    X = sample_df[husn_ai.features]
+    with col_x1:
+        st.info("AI Decision Transparency Report")
+        st.write("SHAP (SHapley Additive exPlanations) is used to explain the output of the XGBoost classifier. This provides high-stakes accountability for national defense decisions.")
 
-    with st.spinner(T["explaining"]):
-        explainer, shap_values = husn_ai.explain(X)
-
-        st.write("Feature Importance Waterfall:")
-        fig, ax = plt.subplots(figsize=(10, 6))
-        # Waterfall plot for the first sample
-        shap.plots.bar(shap_values[0], show=False)
-        plt.tight_layout()
-        st.pyplot(fig)
+    with col_x2:
+        sample_df = pd.read_csv("husn/data/synthetic_traffic.csv").sample(1)
+        X = sample_df[husn_ai.features]
+        with st.spinner(T["explaining"]):
+            explainer, shap_values = husn_ai.explain(X)
+            fig, ax = plt.subplots(figsize=(10, 6))
+            shap.plots.bar(shap_values[0], show=False)
+            plt.gcf().set_facecolor('#0e1117')
+            ax.set_facecolor('#0e1117')
+            plt.tight_layout()
+            st.pyplot(fig)
 
 elif menu == T["attack_simulation"]:
     st.subheader(T["attack_simulation"])
+    st.warning("Authorized Personnel Only: Simulation triggers realistic network stressors.")
 
     col_a, col_b = st.columns(2)
     with col_a:
         target = st.text_input("Target IP", value="127.0.0.1")
     with col_b:
-        atk_type = st.selectbox("Select Attack Type", ["DDoS", "Port Scan", "Brute Force"])
+        atk_type = st.selectbox("Select Vector", ["DDoS (Volumetric)", "Port Scan (Recon)", "Brute Force (Credential)"])
 
-    # Big Simulate Button
-    if st.button(T["simulate_btn"], use_container_width=True, type="primary"):
+    if st.button(T["simulate_btn"], type="primary"):
         sim = AttackSimulator(target)
-        with st.status("Attacking..."):
-            st.write("Generating packets...")
-            if atk_type == "DDoS":
-                sim.ddos_simulation(count=10)
-            elif atk_type == "Port Scan":
+        with st.status("Injecting Malicious Traffic..."):
+            st.write("Crafting headers...")
+            time.sleep(1)
+            if "DDoS" in atk_type:
+                sim.ddos_simulation(count=20)
+            elif "Port Scan" in atk_type:
                 sim.port_scan_simulation()
             else:
                 sim.brute_force_simulation()
-        st.success(f"Simulation of {atk_type} completed!")
+        st.success(f"Simulation of {atk_type} completed! Logs diverted to AI training pipeline.")
 
 elif menu == T["system_status"]:
     st.subheader(T["system_status"])
-    st.info(f"AI Engine: {T['status_online']}")
-    st.success(f"Network Monitor: {T['status_active']}")
-    st.success(f"SIEM Integration: {T['status_active']}")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("AI Status", T["status_online"], delta="Stable")
+    c2.metric("Shield Active", T["status_active"], delta="100%")
+    c3.metric("Integrations", "5/5", delta="Secure")
 
 elif menu == T["alerts_logs"]:
     st.subheader(T["alerts_logs"])

@@ -45,7 +45,7 @@ TRANSLATIONS = {
         "medium": "Medium",
         "low": "Low",
         "run_scan": "Run Threat Scan",
-        "simulate_btn": "Start Simulation",
+        "simulate_btn": "🚀 START SIMULATION",
         "explaining": "Generating SHAP Explanation..."
     },
     "ar": {
@@ -68,7 +68,7 @@ TRANSLATIONS = {
         "medium": "متوسطة",
         "low": "منخفضة",
         "run_scan": "بدء فحص التهديدات",
-        "simulate_btn": "بدء المحاكاة",
+        "simulate_btn": "🚀 بدء المحاكاة",
         "explaining": "جاري إنشاء تفسير SHAP..."
     }
 }
@@ -84,8 +84,13 @@ T = TRANSLATIONS[st.session_state.lang]
 
 # --- Sidebar ---
 with st.sidebar:
-    st.title("Husn / حصن")
-    st.button(T["lang_toggle"], on_click=toggle_lang)
+    st.markdown(f"<div style='text-align: center;'><h1 style='color: #00FF00;'>Husn / حصن</h1></div>", unsafe_allow_html=True)
+
+    # Prominent Language Toggle
+    if st.button(f"🌐 {T['lang_toggle']}", use_container_width=True):
+        toggle_lang()
+        st.rerun()
+
     st.markdown("---")
     menu = st.radio("", [
         T["real_time_monitor"],
@@ -97,8 +102,10 @@ with st.sidebar:
     ])
 
 # --- Header ---
-st.markdown(f"<h1 style='text-align: center; color: #00FF00;'>{T['title']}</h1>", unsafe_content_html=True)
-st.markdown(f"<h3 style='text-align: center;'>{T['tagline']}</h3>", unsafe_content_html=True)
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.markdown(f"<h1 style='text-align: center; color: #00FF00;'>{T['title']}</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='text-align: center;'>{T['tagline']}</h3>", unsafe_allow_html=True)
 
 # --- Components ---
 if menu == T["real_time_monitor"]:
@@ -120,10 +127,9 @@ if menu == T["real_time_monitor"]:
 
 elif menu == T["threat_detection"]:
     st.subheader(T["threat_detection"])
-    if st.button(T["run_scan"]):
+    if st.button(T["run_scan"], use_container_width=True):
         with st.spinner("Analyzing traffic..."):
             time.sleep(1)
-            # Sample traffic for prediction
             sample_df = pd.read_csv("husn/data/synthetic_traffic.csv").sample(5)
             X = sample_df[husn_ai.features]
             results = husn_ai.predict(X)
@@ -133,7 +139,7 @@ elif menu == T["threat_detection"]:
 
 elif menu == T["explainable_ai"]:
     st.subheader(T["explainable_ai"])
-    st.write("Explaining the last detected threat using SHAP values.")
+    st.write("Explaining model decisions with SHAP Waterfall plots.")
 
     sample_df = pd.read_csv("husn/data/synthetic_traffic.csv").sample(1)
     X = sample_df[husn_ai.features]
@@ -141,20 +147,27 @@ elif menu == T["explainable_ai"]:
     with st.spinner(T["explaining"]):
         explainer, shap_values = husn_ai.explain(X)
 
-        # Display SHAP Force Plot or Summary Plot
-        st.write("Feature Importance for this Prediction:")
-        fig, ax = plt.subplots()
-        shap.summary_plot(shap_values, X, plot_type="bar", show=False)
+        st.write("Feature Importance Waterfall:")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        # Waterfall plot for the first sample
+        shap.plots.bar(shap_values[0], show=False)
+        plt.tight_layout()
         st.pyplot(fig)
 
 elif menu == T["attack_simulation"]:
     st.subheader(T["attack_simulation"])
-    target = st.text_input("Target IP", value="127.0.0.1")
-    atk_type = st.selectbox("Select Attack", ["DDoS", "Port Scan", "Brute Force"])
 
-    if st.button(T["simulate_btn"]):
+    col_a, col_b = st.columns(2)
+    with col_a:
+        target = st.text_input("Target IP", value="127.0.0.1")
+    with col_b:
+        atk_type = st.selectbox("Select Attack Type", ["DDoS", "Port Scan", "Brute Force"])
+
+    # Big Simulate Button
+    if st.button(T["simulate_btn"], use_container_width=True, type="primary"):
         sim = AttackSimulator(target)
-        with st.status("Simulating..."):
+        with st.status("Attacking..."):
+            st.write("Generating packets...")
             if atk_type == "DDoS":
                 sim.ddos_simulation(count=10)
             elif atk_type == "Port Scan":

@@ -3,7 +3,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 import time
 import sys
 
@@ -62,20 +62,26 @@ def scan():
 @app.command()
 def simulate():
     """Simulate an attack for training purposes."""
-    console.print("[bold red]Starting Attack Simulation...[/bold red]")
+    console.print(Panel("[bold red]Starting Attack Simulation (Advanced Mode)[/bold red]", border_style="red"))
     attack_type = typer.prompt("Select attack type (DDoS, BruteForce, PortScan)")
 
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
-        transient=True,
+        BarColumn(),
+        TaskProgressColumn(),
     ) as progress:
-        progress.add_task(description=f"Crafting {attack_type} packets...", total=None)
-        time.sleep(1.5)
-        progress.add_task(description="Injected payloads into stream...", total=None)
-        time.sleep(1.5)
+        task1 = progress.add_task(description=f"[cyan]Crafting {attack_type} packets...", total=100)
+        while not progress.finished:
+            progress.update(task1, advance=random.randint(5, 15) if 'random' in globals() else 10)
+            time.sleep(0.3)
+            if progress.tasks[0].completed >= 40 and len(progress.tasks) == 1:
+                progress.add_task(description="[magenta]Injected payloads into stream...", total=100)
+            if len(progress.tasks) > 1:
+                progress.update(progress.task_ids[1], advance=random.randint(10, 20) if 'random' in globals() else 15)
 
-    console.print(f"[bold green]Simulation of {attack_type} completed successfully.[/bold green]")
+    console.print(f"[bold green]✓ Simulation of {attack_type} completed successfully.[/bold green]")
+    console.print("[dim]Traffic logs generated and available for AI training.[/dim]")
 
 @app.command()
 def dashboard():
@@ -108,6 +114,7 @@ def interactive():
             elif text == 'scan':
                 scan()
             elif text == 'simulate':
+                import random
                 simulate()
             elif text == 'dashboard':
                 dashboard()

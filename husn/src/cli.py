@@ -7,6 +7,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskPr
 from rich.live import Live
 from rich.layout import Layout
 from rich.align import Align
+from rich import box
 import time
 import sys
 import random
@@ -57,7 +58,7 @@ def show_banner():
     console.print(Panel(
         Align.center("[bold white]Welcome to Husn (حصن) - Intelligent Cyber Defense System[/bold white]\n[dim]State-of-the-art protection for the digital frontier[/dim]"),
         border_style="bright_green",
-        box=Panel.box.DOUBLE
+        box=box.DOUBLE
     ))
 
 def generate_live_monitor():
@@ -92,7 +93,7 @@ def scan():
                 console.print("[bold red]⚠ HIGH SEVERITY THREAT DETECTED: 104.21.x.x (Infiltration attempt on Web Port 80)[/bold red]")
                 responder.block_ip("104.21.x.x")
 
-    table = Table(title="Scan Results Summary", box=Panel.box.SQUARE)
+    table = Table(title="Scan Results Summary", box=box.SQUARE)
     table.add_column("Timestamp", style="cyan")
     table.add_column("Source IP", style="magenta")
     table.add_column("Target IP", style="magenta")
@@ -158,7 +159,6 @@ def interactive():
 
     while True:
         try:
-            # Fixed: Added completer to session.prompt
             text = session.prompt('husn > ', completer=completer)
             text = text.strip()
             if text == 'exit':

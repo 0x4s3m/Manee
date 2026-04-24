@@ -7,12 +7,14 @@ from sklearn.preprocessing import LabelEncoder
 import joblib
 import shap
 import os
+from husn.src.core.response import DefenseResponse
 
 class HusnAI:
     def __init__(self):
         self.anomaly_model = IsolationForest(contamination=0.1, random_state=42)
         self.classifier_model = XGBClassifier(random_state=42)
         self.label_encoder = LabelEncoder()
+        self.responder = DefenseResponse()
         self.features = [
             'flow_duration', 'total_fwd_pkts', 'total_bwd_pkts',
             'fwd_pkt_len_max', 'fwd_pkt_len_min', 'fwd_pkt_len_mean',
@@ -48,7 +50,7 @@ class HusnAI:
         self.classifier_model = joblib.load("husn/models/classifier_model.joblib")
         self.label_encoder = joblib.load("husn/models/label_encoder.joblib")
 
-    def predict(self, X):
+    def predict(self, X, source_ips=None):
         # 1 means normal, -1 means anomaly
         anomaly_score = self.anomaly_model.predict(X)
 
@@ -62,9 +64,15 @@ class HusnAI:
         for i in range(len(X)):
             is_anomaly = anomaly_score[i] == -1
             severity = "Low"
+            action_taken = "None"
+
             if is_anomaly:
                 if labels[i] != "BENIGN":
                     severity = "High"
+                    # Active Response Trigger
+                    if source_ips is not None:
+                        self.responder.block_ip(source_ips[i])
+                        action_taken = f"Blocked {source_ips[i]}"
                 else:
                     severity = "Medium"
 
@@ -72,13 +80,14 @@ class HusnAI:
                 "label": labels[i],
                 "confidence": confidence[i],
                 "is_anomaly": is_anomaly,
-                "severity": severity
+                "severity": severity,
+                "action": action_taken
             })
         return results
 
     def explain(self, X):
-        explainer = shap.TreeExplainer(self.classifier_model)
-        shap_values = explainer.shap_values(X)
+        explainer = shap.Explainer(self.classifier_model, X)
+        shap_values = explainer(X)
         return explainer, shap_values
 
 if __name__ == "__main__":

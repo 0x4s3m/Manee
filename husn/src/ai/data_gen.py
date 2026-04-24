@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 
-def generate_synthetic_data(n_samples=1000, output_path="husn/data/synthetic_traffic.csv"):
+def generate_synthetic_data(n_samples=1500, output_path="husn/data/synthetic_traffic.csv"):
     np.random.seed(42)
 
     # Feature names
@@ -15,10 +15,10 @@ def generate_synthetic_data(n_samples=1000, output_path="husn/data/synthetic_tra
     ]
 
     data = []
-    labels = ['BENIGN', 'DDoS', 'PortScan', 'Brute Force', 'Infiltration']
+    labels = ['BENIGN', 'DDoS', 'PortScan', 'Brute Force', 'Infiltration', 'Web Attack']
 
     for _ in range(n_samples):
-        label = np.random.choice(labels, p=[0.7, 0.1, 0.1, 0.05, 0.05])
+        label = np.random.choice(labels, p=[0.6, 0.1, 0.1, 0.05, 0.07, 0.08])
 
         # Base features (BENIGN style)
         row = {
@@ -54,13 +54,18 @@ def generate_synthetic_data(n_samples=1000, output_path="husn/data/synthetic_tra
         elif label == 'Brute Force':
             row['total_fwd_pkts'] = np.random.randint(20, 50)
             row['flow_duration'] *= 2
+        elif label == 'Infiltration' or label == 'Web Attack':
+            # Complex signatures
+            row['pkt_len_mean'] *= 1.5
+            row['total_bwd_pkts'] += 50
+            row['ack_flag_cnt'] = 1
 
         data.append(row)
 
     df = pd.DataFrame(data)
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     df.to_csv(output_path, index=False)
-    print(f"Synthetic data generated at {output_path}")
+    print(f"Synthetic data updated at {output_path}")
     return df
 
 if __name__ == "__main__":

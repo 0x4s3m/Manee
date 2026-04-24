@@ -10,6 +10,7 @@ from rich.align import Align
 import time
 import sys
 import random
+from husn.src.core.response import DefenseResponse
 
 # For interactive mode
 from prompt_toolkit import PromptSession
@@ -17,6 +18,7 @@ from prompt_toolkit.completion import WordCompleter
 
 app = typer.Typer()
 console = Console()
+responder = DefenseResponse(console=console)
 
 LOGO = """
 [bold green]
@@ -83,9 +85,12 @@ def scan():
     """Scan the network for threats."""
     console.print("[bold yellow]Initiating Deep Packet Inspection...[/bold yellow]")
     with Live(generate_live_monitor(), refresh_per_second=4) as live:
-        for _ in range(20):
+        for i in range(20):
             time.sleep(0.2)
             live.update(generate_live_monitor())
+            if i == 10:
+                console.print("[bold red]⚠ HIGH SEVERITY THREAT DETECTED: 104.21.x.x (Infiltration attempt on Web Port 80)[/bold red]")
+                responder.block_ip("104.21.x.x")
 
     table = Table(title="Scan Results Summary", box=Panel.box.SQUARE)
     table.add_column("Timestamp", style="cyan")
@@ -94,7 +99,7 @@ def scan():
     table.add_column("Attack Type", style="red")
     table.add_column("Severity", style="bold red")
 
-    table.add_row("2026-04-24 10:00:01", "192.168.1.15", "10.0.0.5", "DDoS", "High")
+    table.add_row("2026-04-24 10:00:01", "104.21.x.x", "10.0.0.5", "Infiltration", "High")
     table.add_row("2026-04-24 10:00:05", "172.16.0.22", "10.0.0.5", "PortScan", "Medium")
     table.add_row("2026-04-24 10:00:12", "192.168.1.50", "10.0.0.1", "BENIGN", "Low")
 

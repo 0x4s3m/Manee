@@ -15,7 +15,8 @@ def main():
         subprocess.run([sys.executable, "-m", "husn.src.cli"])
     elif command == "dashboard":
         os.environ["PYTHONPATH"] = os.getcwd()
-        subprocess.run(["streamlit", "run", "husn/src/dashboard.py"])
+        # Use sys.executable -m streamlit for better portability
+        subprocess.run([sys.executable, "-m", "streamlit", "run", "husn/src/dashboard.py"])
     else:
         print(f"Unknown command: {command}")
         print("Available commands: cli, dashboard")

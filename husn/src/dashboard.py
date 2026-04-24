@@ -52,6 +52,16 @@ st.markdown("""
         overflow-y: scroll;
         border: 1px solid #00FF00;
     }
+    .threat-banner {
+        padding: 15px;
+        background-color: #440000;
+        color: white;
+        border-radius: 5px;
+        border: 2px solid #ff0000;
+        margin-bottom: 20px;
+        text-align: center;
+        font-weight: bold;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -65,7 +75,6 @@ def load_lottieurl(url: str):
     except:
         return None
 
-# Shield animation
 lottie_shield = load_lottieurl("https://lottie.host/8070868a-6b83-4903-9114-118e690f3c5b/vUf0fF2l7v.json")
 
 # --- Load AI Model ---
@@ -97,7 +106,8 @@ TRANSLATIONS = {
         "attack_type": "Attack Type",
         "run_scan": "Run Threat Scan",
         "simulate_btn": "🚀 START SIMULATION",
-        "explaining": "Generating SHAP Explanation..."
+        "explaining": "Generating SHAP Explanation...",
+        "defensive_actions": "Defensive Actions"
     },
     "ar": {
         "title": "حصن (Husn)",
@@ -116,13 +126,17 @@ TRANSLATIONS = {
         "attack_type": "نوع الهجوم",
         "run_scan": "بدء فحص التهديدات",
         "simulate_btn": "🚀 بدء المحاكاة",
-        "explaining": "جاري إنشاء تفسير SHAP..."
+        "explaining": "جاري إنشاء تفسير SHAP...",
+        "defensive_actions": "الإجراءات الدفاعية"
     }
 }
 
 # --- Session State ---
 if "lang" not in st.session_state:
     st.session_state.lang = "en"
+
+if "intercepted" not in st.session_state:
+    st.session_state.intercepted = []
 
 def toggle_lang():
     st.session_state.lang = "ar" if st.session_state.lang == "en" else "en"
@@ -158,12 +172,22 @@ st.markdown("---")
 if menu == T["real_time_monitor"]:
     st.subheader(T["real_time_monitor"])
 
+    # Active Alert
+    if st.session_state.intercepted:
+        last_threat = st.session_state.intercepted[-1]
+        st.markdown(f"""
+            <div class="threat-banner">
+                🚨 CRITICAL THREAT INTERCEPTED: {last_threat['attack']} from {last_threat['ip']}
+                <br>Automated Response: IP SHIELD ACTIVATED
+            </div>
+        """, unsafe_allow_html=True)
+
     # Metrics Row
     m1, m2, m3, m4 = st.columns(4)
     with m1:
         st.markdown('<div class="metric-card"><h4>Uptime</h4><h2>99.9%</h2></div>', unsafe_allow_html=True)
     with m2:
-        st.markdown('<div class="metric-card"><h4>Threats Blocked</h4><h2>1,284</h2></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metric-card"><h4>Threats Blocked</h4><h2>{1284 + len(st.session_state.intercepted)}</h2></div>', unsafe_allow_html=True)
     with m3:
         st.markdown('<div class="metric-card"><h4>Network Load</h4><h2>12%</h2></div>', unsafe_allow_html=True)
     with m4:
@@ -180,7 +204,9 @@ if menu == T["real_time_monitor"]:
 
     with col2:
         st.markdown("<h4>SIEM Intelligence Feed</h4>", unsafe_allow_html=True)
-        log_content = "".join([f"[{time.strftime('%H:%M:%S')}] INFO: Packet from {np.random.randint(1,255)}.{np.random.randint(1,255)}.x.x analyzed... OK<br>" for _ in range(20)])
+        log_content = "".join([f"[{time.strftime('%H:%M:%S')}] INFO: Packet from {np.random.randint(1,255)}.{np.random.randint(1,255)}.x.x analyzed... OK<br>" for _ in range(15)])
+        if st.session_state.intercepted:
+            log_content = f"<span style='color:red;'>[{time.strftime('%H:%M:%S')}] ALERT: BLOCKING {st.session_state.intercepted[-1]['ip']} due to {st.session_state.intercepted[-1]['attack']}</span><br>" + log_content
         st.markdown(f'<div class="siem-log">{log_content}</div>', unsafe_allow_html=True)
 
 elif menu == T["threat_detection"]:
@@ -190,7 +216,18 @@ elif menu == T["threat_detection"]:
             time.sleep(1.5)
             sample_df = pd.read_csv("husn/data/synthetic_traffic.csv").sample(10)
             X = sample_df[husn_ai.features]
-            results = husn_ai.predict(X)
+
+            # Inject a "Real" Infiltration Threat for Demo
+            source_ips = [f"192.168.1.{i}" for i in range(len(X))]
+            source_ips[4] = "91.234.x.y" # The "Attacker"
+
+            results = husn_ai.predict(X, source_ips=source_ips)
+
+            # Record if a High Severity threat was found
+            for res in results:
+                if res['severity'] == "High":
+                    st.session_state.intercepted.append({"ip": "91.234.x.y", "attack": res['label']})
+
             res_df = pd.DataFrame(results)
             st.table(res_df)
 
@@ -222,7 +259,7 @@ elif menu == T["attack_simulation"]:
     with col_a:
         target = st.text_input("Target IP", value="127.0.0.1")
     with col_b:
-        atk_type = st.selectbox("Select Vector", ["DDoS (Volumetric)", "Port Scan (Recon)", "Brute Force (Credential)"])
+        atk_type = st.selectbox("Select Vector", ["DDoS (Volumetric)", "Port Scan (Recon)", "Brute Force (Credential)", "Web Infiltration"])
 
     if st.button(T["simulate_btn"], type="primary"):
         sim = AttackSimulator(target)
@@ -233,6 +270,11 @@ elif menu == T["attack_simulation"]:
                 sim.ddos_simulation(count=20)
             elif "Port Scan" in atk_type:
                 sim.port_scan_simulation()
+            elif "Web" in atk_type:
+                 # Special logic for web infiltration simulation visualization
+                 st.write("Exploiting SQL Injection vulnerability...")
+                 time.sleep(1.5)
+                 st.write("Payload delivered. Establishing reverse shell...")
             else:
                 sim.brute_force_simulation()
         st.success(f"Simulation of {atk_type} completed! Logs diverted to AI training pipeline.")
@@ -243,6 +285,11 @@ elif menu == T["system_status"]:
     c1.metric("AI Status", T["status_online"], delta="Stable")
     c2.metric("Shield Active", T["status_active"], delta="100%")
     c3.metric("Integrations", "5/5", delta="Secure")
+
+    if st.session_state.intercepted:
+        st.subheader(T["defensive_actions"])
+        st.error(f"AUTO-BLOCK: {len(st.session_state.intercepted)} malicious IPs isolated today.")
+        st.write(pd.DataFrame(st.session_state.intercepted))
 
 elif menu == T["alerts_logs"]:
     st.subheader(T["alerts_logs"])

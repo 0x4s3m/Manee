@@ -1,4 +1,4 @@
-export const translations = {
+export const translations: any = {
   en: {
     title: "Husn",
     arabicTitle: "حصن",
@@ -23,7 +23,8 @@ export const translations = {
     uptime: "System Uptime",
     threatsBlocked: "Threats Blocked",
     networkLoad: "Network Load",
-    aiConfidence: "AI Confidence"
+    aiConfidence: "AI Confidence",
+    payloads: "Payloads"
   },
   ar: {
     title: "حصن",
@@ -49,6 +50,7 @@ export const translations = {
     uptime: "وقت تشغيل النظام",
     threatsBlocked: "التهديدات المحجوبة",
     networkLoad: "حمل الشبكة",
-    aiConfidence: "ثقة الذكاء الاصطناعي"
+    aiConfidence: "ثقة الذكاء الاصطناعي",
+    payloads: "الحمولات"
   }
 };

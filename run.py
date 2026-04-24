@@ -11,6 +11,9 @@ def main():
     command = sys.argv[1].lower()
     root_dir = os.getcwd()
 
+    # Use npx to ensure local binaries like vite are found
+    npm_cmd = "npm.cmd" if sys.platform == "win32" else "npm"
+
     if command == "cli":
         os.environ["PYTHONPATH"] = os.path.join(root_dir, "backend")
         subprocess.run([sys.executable, "-m", "husn.src.cli"], cwd="backend")
@@ -20,7 +23,7 @@ def main():
         subprocess.run([sys.executable, "main.py"], cwd="backend")
 
     elif command == "frontend":
-        subprocess.run(["npm", "run", "dev"], cwd="frontend")
+        subprocess.run([npm_cmd, "run", "dev"], cwd="frontend")
 
     elif command == "both":
         print("🚀 Launching HUSN High-Professional Dual System...")
@@ -34,7 +37,7 @@ def main():
 
         # Start Frontend
         print("Starting React Frontend...")
-        frontend_proc = subprocess.Popen(["npm", "run", "dev"], cwd="frontend")
+        frontend_proc = subprocess.Popen([npm_cmd, "run", "dev"], cwd="frontend")
 
         print("\n--- HUSN SYSTEM READY ---")
         print("Backend: http://localhost:8000")

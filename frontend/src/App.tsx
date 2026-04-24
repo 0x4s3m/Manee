@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import {
   Shield,
@@ -8,10 +8,7 @@ import {
   Package,
   Terminal as TerminalIcon,
   Globe,
-  AlertCircle,
   Play,
-  Copy,
-  Check,
   Eye,
   Activity,
   Cpu,

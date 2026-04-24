@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 @theme {
   --color-neon-green: #00ff00;
   --color-neon-red: #ff0000;

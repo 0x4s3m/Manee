@@ -1,0 +1,12 @@
+rich
+typer
+streamlit
+scikit-learn
+xgboost
+shap
+plotly
+pandas
+numpy
+scapy
+matplotlib
+prompt_toolkit

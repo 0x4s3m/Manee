@@ -5,43 +5,53 @@ import time
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python run.py [cli|dashboard|both]")
+        print("Usage: python run.py [cli|backend|frontend|both]")
         sys.exit(1)
 
     command = sys.argv[1].lower()
-    os.environ["PYTHONPATH"] = os.getcwd()
-
-    # Streamlit configuration to suppress prompts
-    st_args = [sys.executable, "-m", "streamlit", "run", "husn/src/dashboard.py",
-               "--browser.gatherUsageStats", "false",
-               "--server.headless", "true"]
+    root_dir = os.getcwd()
 
     if command == "cli":
-        subprocess.run([sys.executable, "-m", "husn.src.cli"])
-    elif command == "dashboard":
-        subprocess.run(st_args)
+        os.environ["PYTHONPATH"] = os.path.join(root_dir, "backend")
+        subprocess.run([sys.executable, "-m", "husn.src.cli"], cwd="backend")
+
+    elif command == "backend":
+        os.environ["PYTHONPATH"] = os.path.join(root_dir, "backend")
+        subprocess.run([sys.executable, "main.py"], cwd="backend")
+
+    elif command == "frontend":
+        subprocess.run(["npm", "run", "dev"], cwd="frontend")
+
     elif command == "both":
-        print("🚀 Launching HUSN Dual Interface...")
-        # Start dashboard in background
-        print("Starting Dashboard in background...")
-        dashboard_proc = subprocess.Popen(st_args)
+        print("🚀 Launching HUSN High-Professional Dual System...")
 
-        time.sleep(3) # Give it more time to start
+        # Start Backend
+        print("Starting FastAPI Backend...")
+        os.environ["PYTHONPATH"] = os.path.join(root_dir, "backend")
+        backend_proc = subprocess.Popen([sys.executable, "main.py"], cwd="backend")
 
-        # Start CLI in foreground
-        print("Starting Interactive CLI...")
+        time.sleep(2)
+
+        # Start Frontend
+        print("Starting React Frontend...")
+        frontend_proc = subprocess.Popen(["npm", "run", "dev"], cwd="frontend")
+
+        print("\n--- HUSN SYSTEM READY ---")
+        print("Backend: http://localhost:8000")
+        print("Frontend: http://localhost:5173")
+        print("-------------------------\n")
+
         try:
-            subprocess.run([sys.executable, "-m", "husn.src.cli"])
+            # Start CLI in foreground
+            print("Starting Interactive CLI...")
+            subprocess.run([sys.executable, "-m", "husn.src.cli"], cwd="backend")
         finally:
-            print("Cleaning up background processes...")
-            dashboard_proc.terminate()
-            try:
-                dashboard_proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                dashboard_proc.kill()
+            print("Cleaning up processes...")
+            frontend_proc.terminate()
+            backend_proc.terminate()
     else:
         print(f"Unknown command: {command}")
-        print("Available commands: cli, dashboard, both")
+        print("Available commands: cli, backend, frontend, both")
         sys.exit(1)
 
 if __name__ == "__main__":

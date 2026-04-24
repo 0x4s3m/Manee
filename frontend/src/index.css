@@ -1,0 +1,25 @@
+@theme {
+  --color-neon-green: #00ff00;
+  --color-neon-red: #ff0000;
+  --color-neon-cyan: #00ffff;
+  --color-cyber-bg: #0e1117;
+  --color-cyber-card: #1a1c24;
+}
+
+@layer base {
+  body {
+    @apply bg-cyber-bg text-white font-mono;
+  }
+}
+
+.glass-card {
+  @apply bg-cyber-card border-l-4 border-neon-green p-6 rounded-lg shadow-lg;
+}
+
+.neon-glow {
+  text-shadow: 0 0 10px currentColor;
+}
+
+.cyber-button {
+  @apply bg-neon-green text-black font-bold py-2 px-4 rounded hover:bg-green-400 transition-all duration-300 shadow-[0_0_10px_rgba(0,255,0,0.5)];
+}

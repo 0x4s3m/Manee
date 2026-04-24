@@ -5,77 +5,67 @@
   <h3>Intelligent Cyber Defense System for National Security</h3>
 </div>
 
-Husn (حصن) is an AI-powered cybersecurity system designed for the DefensThon 2026 competition. It provides real-time network monitoring, threat detection, and automated attack response with explainable AI.
+Husn (حصن) is a state-of-the-art AI-powered cybersecurity system designed for the DefensThon 2026 competition. It features a professional React-based dashboard and a Metasploit-style CLI for comprehensive network protection.
 
 ---
 
-## 📸 Screenshots
+## ✨ Key Features
 
-### 🛠️ Professional CLI (Metasploit Style)
-![CLI Screenshot](assets/cli_screenshot.png)
-
-### 📊 Bilingual Web Dashboard
-![Dashboard English](assets/dashboard_en.png)
+- **🚀 High-Professional Dashboard**: Built with **React + TypeScript + Tailwind CSS**, featuring neon-cyber aesthetics and smooth Framer Motion animations.
+- **🛡️ Dual Interface**: Fully integrated FastAPI backend supporting both a modern web UI and an interactive terminal CLI.
+- **🧠 Hybrid AI Engine**: Advanced threat detection using **IsolationForest** and **XGBoost** trained on network flow signatures.
+- **🔍 Explainable AI (SHAP)**: Visual feature importance plots to explain why the AI flagged specific traffic as malicious.
+- **⚡ Active Defense**: Automated IP blocking and session mitigation for high-severity threats.
+- **🌍 Bilingual Support**: Seamless English and Arabic toggle for the entire web interface.
+- **📡 Realistic Simulation**: Scapy-powered attack generation for training and demonstration.
 
 ---
 
 ## 📁 Project Structure
 ```
 husn/
-├── data/               # Datasets
-├── models/             # Trained AI models
-├── src/
-│   ├── ai/             # AI Model, SHAP logic, Data Gen
-│   ├── core/           # Attack Simulation & Active Defense
-│   ├── cli.py          # Interactive CLI (Enchanted)
-│   └── dashboard.py    # Streamlit Dashboard (Enchanted)
-└── tests/              # Unit tests
-run.py                  # Dual-mode entry point
+├── backend/            # FastAPI, AI Models, & CLI
+│   ├── husn/           # Core library
+│   ├── main.py         # API entry point
+│   └── data/           # Datasets
+├── frontend/           # React + TypeScript + Vite
+└── run.py              # Root orchestrator
 ```
 
-## ✨ Features
-- **Dual Interface**: Run the high-tech CLI and the bilingual Web Dashboard concurrently.
-- **Active Defense**: Automated IP blocking and session termination for high-severity threats.
-- **Professional CLI**: Metasploit-style interactive shell with boot sequences and live monitors.
-- **Web Dashboard**: Neon-themed Streamlit dashboard with real-time SIEM logs and SHAP visualizations.
-- **AI-Powered**: Hybrid XGBoost + IsolationForest models trained on network flow data.
-
 ## 🚀 Installation
-1. Clone the repository
-2. Install dependencies:
+
+1. **Backend Setup**:
    ```bash
-   pip install -r requirements.txt
+   pip install -r backend/requirements.txt
+   ```
+
+2. **Frontend Setup**:
+   ```bash
+   cd frontend && npm install && cd ..
    ```
 
 ## 🛠️ Usage
-Launch Husn using the `run.py` script:
 
-- **Full Experience (Dual Mode)**:
+Launch the full system using the root orchestrator:
+
+- **Dual Mode (Dashboard + CLI)**:
   ```bash
   python run.py both
   ```
-- **Interactive CLI Only**:
-  ```bash
-  python run.py cli
-  ```
-- **Web Dashboard Only**:
-  ```bash
-  python run.py dashboard
-  ```
+
+- **Individual Services**:
+  - `python run.py backend`
+  - `python run.py frontend`
+  - `python run.py cli`
 
 ---
 
 # حصن (Husn) - الدرع السيبراني الذكي
 
-حصن هو نظام للأمن السيبراني مدعوم بالذكاء الاصطناعي تم تطويره لمسابقة DefensThon 2026. يوفر النظام مراقبة الشبكة في الوقت الفعلي، واكتشاف التهديدات، والاستجابة التلقائية للهجمات مع شرح الذكاء الاصطناعي.
+حصن هو نظام للأمن السيبراني مدعوم بالذكاء الاصطناعي تم تطويره لمسابقة DefensThon 2026. يتميز النظام بلوحة معلومات احترافية مبنية على React وواجهة سطر أوامر بأسلوب Metasploit.
 
 ## المميزات
-- **الاستخدام المزدوج**: تشغيل واجهة سطر الأوامر ولوحة المعلومات في وقت واحد.
-- **الدفاع النشط**: حظر تلقائي لعناوين IP المهاجمة.
-- **واجهة سطر الأوامر (CLI)**: واجهة احترافية بأسلوب Metasploit مع مراقبة حية.
-- **لوحة معلومات الويب**: لوحة Streamlit ثنائية اللغة (العربية/الإنجليزية) بمظهر مستقبلي.
-
-## الاستخدام
-- **الوضع المزدوج**: `python run.py both`
-- **واجهة سطر الأوامر**: `python run.py cli`
-- **لوحة التحكم**: `python run.py dashboard`
+- **لوحة معلومات متطورة**: مبنية باستخدام React و Tailwind CSS.
+- **دعم ثنائي اللغة**: تبديل سلس بين العربية والإنجليزية.
+- **دفاع نشط**: حظر تلقائي للتهديدات عالية الخطورة.
+- **شرح الذكاء الاصطناعي (SHAP)**: توضيح أسباب اتخاذ القرار من قبل النظام.

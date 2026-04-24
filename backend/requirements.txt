@@ -1,15 +1,13 @@
 rich
 typer
-streamlit
+fastapi
+uvicorn
 scikit-learn
 xgboost
 shap
-plotly
 pandas
 numpy
 scapy
 matplotlib
 prompt_toolkit
-playwright
-streamlit-lottie
 requests

@@ -158,7 +158,8 @@ def interactive():
 
     while True:
         try:
-            text = session.prompt(Text.assemble(("husn", "bold green"), " > "))
+            # Fixed: Added completer to session.prompt
+            text = session.prompt('husn > ', completer=completer)
             text = text.strip()
             if text == 'exit':
                 break

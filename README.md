@@ -5,7 +5,7 @@
   <h3>Intelligent Cyber Defense System for National Security</h3>
 </div>
 
-Husn (حصن) is an AI-powered cybersecurity system designed for the DefensThon 2026 competition. It provides real-time network monitoring, threat detection, and attack simulation with explainable AI.
+Husn (حصن) is an AI-powered cybersecurity system designed for the DefensThon 2026 competition. It provides real-time network monitoring, threat detection, and automated attack response with explainable AI.
 
 ---
 
@@ -16,7 +16,6 @@ Husn (حصن) is an AI-powered cybersecurity system designed for the DefensThon 
 
 ### 📊 Bilingual Web Dashboard
 ![Dashboard English](assets/dashboard_en.png)
-![Dashboard Arabic](assets/dashboard_ar.png)
 
 ---
 
@@ -26,19 +25,20 @@ husn/
 ├── data/               # Datasets
 ├── models/             # Trained AI models
 ├── src/
-│   ├── ai/             # AI Model and SHAP logic
-│   ├── core/           # Attack Simulation (Scapy)
-│   ├── cli.py          # Interactive CLI
-│   └── dashboard.py    # Streamlit Dashboard
+│   ├── ai/             # AI Model, SHAP logic, Data Gen
+│   ├── core/           # Attack Simulation & Active Defense
+│   ├── cli.py          # Interactive CLI (Enchanted)
+│   └── dashboard.py    # Streamlit Dashboard (Enchanted)
 └── tests/              # Unit tests
-run.py                  # Entry point
+run.py                  # Dual-mode entry point
 ```
 
 ## ✨ Features
-- **Professional CLI**: Metasploit-style interactive shell with rich visualizations.
-- **Web Dashboard**: Bilingual (English/Arabic) Streamlit dashboard with real-time monitoring and SHAP explanations.
-- **AI-Powered Detection**: Hybrid model using XGBoost and IsolationForest for anomaly detection and multi-class attack classification.
-- **Attack Simulation**: Realistic attack simulation using Scapy.
+- **Dual Interface**: Run the high-tech CLI and the bilingual Web Dashboard concurrently.
+- **Active Defense**: Automated IP blocking and session termination for high-severity threats.
+- **Professional CLI**: Metasploit-style interactive shell with boot sequences and live monitors.
+- **Web Dashboard**: Neon-themed Streamlit dashboard with real-time SIEM logs and SHAP visualizations.
+- **AI-Powered**: Hybrid XGBoost + IsolationForest models trained on network flow data.
 
 ## 🚀 Installation
 1. Clone the repository
@@ -50,11 +50,15 @@ run.py                  # Entry point
 ## 🛠️ Usage
 Launch Husn using the `run.py` script:
 
-- **Interactive CLI**:
+- **Full Experience (Dual Mode)**:
+  ```bash
+  python run.py both
+  ```
+- **Interactive CLI Only**:
   ```bash
   python run.py cli
   ```
-- **Web Dashboard**:
+- **Web Dashboard Only**:
   ```bash
   python run.py dashboard
   ```
@@ -63,21 +67,15 @@ Launch Husn using the `run.py` script:
 
 # حصن (Husn) - الدرع السيبراني الذكي
 
-حصن هو نظام للأمن السيبراني مدعوم بالذكاء الاصطناعي تم تطويره لمسابقة DefensThon 2026. يوفر النظام مراقبة الشبكة في الوقت الفعلي، واكتشاف التهديدات، ومحاكاة الهجمات مع شرح الذكاء الاصطناعي.
+حصن هو نظام للأمن السيبراني مدعوم بالذكاء الاصطناعي تم تطويره لمسابقة DefensThon 2026. يوفر النظام مراقبة الشبكة في الوقت الفعلي، واكتشاف التهديدات، والاستجابة التلقائية للهجمات مع شرح الذكاء الاصطناعي.
 
 ## المميزات
-- **واجهة سطر الأوامر (CLI)**: واجهة احترافية بأسلوب Metasploit مع تصورات غنية.
-- **لوحة معلومات الويب**: لوحة Streamlit ثنائية اللغة (العربية/الإنجليزية) مع مراقبة حقيقية وشرح SHAP.
-- **الكشف المدعوم بالذكاء الاصطناعي**: نموذج هجين يستخدم XGBoost و IsolationForest لاكتشاف الشذوذ وتصنيف الهجمات.
-- **محاكاة الهجمات**: محاكاة واقعية للهجمات باستخدام Scapy.
-
-## التثبيت
-1. استنساخ المستودع
-2. تثبيت المتطلبات:
-   ```bash
-   pip install -r requirements.txt
-   ```
+- **الاستخدام المزدوج**: تشغيل واجهة سطر الأوامر ولوحة المعلومات في وقت واحد.
+- **الدفاع النشط**: حظر تلقائي لعناوين IP المهاجمة.
+- **واجهة سطر الأوامر (CLI)**: واجهة احترافية بأسلوب Metasploit مع مراقبة حية.
+- **لوحة معلومات الويب**: لوحة Streamlit ثنائية اللغة (العربية/الإنجليزية) بمظهر مستقبلي.
 
 ## الاستخدام
+- **الوضع المزدوج**: `python run.py both`
 - **واجهة سطر الأوامر**: `python run.py cli`
 - **لوحة التحكم**: `python run.py dashboard`

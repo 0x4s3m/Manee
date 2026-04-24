@@ -33,6 +33,9 @@ class SimulationRequest(BaseModel):
     target_ip: str
     attack_type: str
 
+class ScanRequest(BaseModel):
+    target: str
+
 @app.get("/status")
 def get_status():
     return {
@@ -53,25 +56,14 @@ def get_monitoring_data():
         "threats_blocked": 1284 + len([l for l in logs if "BLOCK" in l])
     }
 
-@app.get("/scan")
-def run_scan():
-    # Simulate a real scan return
-    sample_df = pd.read_csv("husn/data/synthetic_traffic.csv").sample(10)
+@app.post("/scan")
+def run_scan(req: ScanRequest):
+    logs.append(f"[{time.strftime('%H:%M:%S')}] SCAN STARTED: Targeting {req.target}")
+    # Simulate a real scan return with a delay (handled by frontend, but we prepare data)
+    sample_df = pd.read_csv("husn/data/synthetic_traffic.csv").sample(5)
     X = sample_df[ai.features]
 
-    source_ips = [f"192.168.1.{random.randint(1,254)}" for _ in range(len(X))]
-    # Occasional threat
-    if random.random() > 0.7:
-        source_ips[random.randint(0,9)] = f"{random.randint(1,255)}.{random.randint(1,255)}.x.y"
-
-    results = ai.predict(X, source_ips=source_ips)
-
-    for res, ip in zip(results, source_ips):
-        if res['severity'] == "High":
-            logs.append(f"[{time.strftime('%H:%M:%S')}] ALERT: BLOCKING {ip} due to {res['label']}")
-        else:
-            logs.append(f"[{time.strftime('%H:%M:%S')}] INFO: Packet from {ip} analyzed... OK")
-
+    results = ai.predict(X)
     return results
 
 @app.post("/simulate")
@@ -89,7 +81,7 @@ def trigger_simulation(req: SimulationRequest):
 
 @app.get("/logs")
 def get_logs():
-    return logs[-20:]
+    return logs[-30:]
 
 @app.get("/explain")
 def get_explanation():
@@ -97,25 +89,26 @@ def get_explanation():
     X = sample_df[ai.features]
     explainer, shap_values = ai.explain(X)
 
-    # Format SHAP data for React frontend
-    # Since we can't easily send complex matplotlib/shap objects,
-    # we send raw values for Recharts.
     feature_importance = []
-    base_values = shap_values.base_values[0] if hasattr(shap_values, 'base_values') else 0
-    values = shap_values.values[0] if hasattr(shap_values, 'values') else shap_values[0]
+    # Handle both new and old SHAP API outputs
+    if hasattr(shap_values, 'values'):
+        vals = shap_values.values[0]
+        base = float(shap_values.base_values[0])
+    else:
+        vals = shap_values[0]
+        base = 0.5
 
     for i, feat in enumerate(ai.features):
         feature_importance.append({
             "name": feat,
-            "value": float(values[i])
+            "value": float(vals[i])
         })
 
-    # Sort by absolute value
     feature_importance.sort(key=lambda x: abs(x['value']), reverse=True)
 
     return {
         "features": feature_importance[:10],
-        "base_value": float(base_values)
+        "base_value": base
     }
 
 if __name__ == "__main__":

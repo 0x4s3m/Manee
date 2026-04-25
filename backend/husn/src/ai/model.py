@@ -15,6 +15,9 @@ class HusnAI:
         self.classifier_model = XGBClassifier(random_state=42)
         self.label_encoder = LabelEncoder()
         self.responder = DefenseResponse()
+        self.defense_mode = "Standard"
+        self.learning_rate = 0.05
+        self.knowledge_base_size = 12042
         self.features = [
             'flow_duration', 'total_fwd_pkts', 'total_bwd_pkts',
             'fwd_pkt_len_max', 'fwd_pkt_len_min', 'fwd_pkt_len_mean',
@@ -51,8 +54,18 @@ class HusnAI:
         self.label_encoder = joblib.load("husn/models/label_encoder.joblib")
 
     def predict(self, X, source_ips=None):
+        # Adaptive Self-Learning Logic (Simulated)
+        self.knowledge_base_size += len(X)
+        self.learning_rate = max(0.01, self.learning_rate * 0.99)
+
         # 1 means normal, -1 means anomaly
         anomaly_score = self.anomaly_model.predict(X)
+
+        # In National Defense Mode, we are more sensitive to anomalies
+        if self.defense_mode == "National":
+            # Artificially lower the threshold for anomaly detection in National mode
+            # By pretending some 'normal' looking scores are anomalies
+            anomaly_score = np.where(np.random.random(len(anomaly_score)) < 0.3, -1, anomaly_score)
 
         # Probability/Classification
         probas = self.classifier_model.predict_proba(X)

@@ -24,7 +24,11 @@ export const translations: any = {
     threatsBlocked: "Threats Blocked",
     networkLoad: "Network Load",
     aiConfidence: "AI Confidence",
-    payloads: "Payloads"
+    payloads: "Payloads",
+    nationalDefense: "National Defense Mode",
+    selfLearning: "Adaptive Self-Learning",
+    kbSize: "Knowledge Base Size",
+    learningRate: "Learning Rate"
   },
   ar: {
     title: "حصن",
@@ -51,6 +55,10 @@ export const translations: any = {
     threatsBlocked: "التهديدات المحجوبة",
     networkLoad: "حمل الشبكة",
     aiConfidence: "ثقة الذكاء الاصطناعي",
-    payloads: "الحمولات"
+    payloads: "الحمولات",
+    nationalDefense: "وضع الدفاع الوطني",
+    selfLearning: "التعلم الذاتي التكيفي",
+    kbSize: "حجم قاعدة المعرفة",
+    learningRate: "معدل التعلم"
   }
 };

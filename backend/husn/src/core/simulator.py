@@ -16,26 +16,31 @@ class AttackSimulator:
             pass
 
     def ddos_simulation(self, count=100):
-        print(f"Simulating DDoS attack on {self.target_ip}...")
-        for _ in range(count):
+        print(f"🔥 [DEMO] Initiating high-intensity DDoS attack on {self.target_ip}...")
+        for i in range(count):
             pkt = IP(src=RandIP(), dst=self.target_ip) / TCP(sport=RandShort(), dport=80, flags="S")
             self._send_packet(pkt)
-        print("DDoS simulation completed.")
+            if i % 10 == 0: print(f"   [>] Flooding... {i}/{count} packets dispatched")
+        print("✅ DDoS simulation completed.")
 
     def port_scan_simulation(self):
-        print(f"Simulating Port Scan on {self.target_ip}...")
-        for port in range(20, 100):
+        print(f"🔍 [DEMO] Initiating Stealth Port Scan on {self.target_ip}...")
+        ports = [21, 22, 23, 25, 53, 80, 110, 443, 3306, 3389, 8080]
+        for port in ports:
             pkt = IP(dst=self.target_ip) / TCP(dport=port, flags="S")
             self._send_packet(pkt)
-        print("Port scan simulation completed.")
+            print(f"   [*] Probing port {port}...")
+            time.sleep(0.05)
+        print("✅ Port scan simulation completed.")
 
     def brute_force_simulation(self):
-        print(f"Simulating Brute Force (SSH) on {self.target_ip}...")
-        for _ in range(20):
+        print(f"🔨 [DEMO] Initiating SSH Brute Force against {self.target_ip}...")
+        for i in range(20):
             pkt = IP(dst=self.target_ip) / TCP(dport=22, flags="PA")
             self._send_packet(pkt)
+            if i % 5 == 0: print(f"   [*] Attempting credential set #{i//5 + 1}...")
             time.sleep(0.1)
-        print("Brute force simulation completed.")
+        print("✅ Brute force simulation completed.")
 
 if __name__ == "__main__":
     # Use loopback for testing

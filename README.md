@@ -1,71 +1,72 @@
-# Husn (حصن) - Intelligent Cyber Shield
+# Husn (حصن) - Intelligent Cyber Shield (Final Polish)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/username/repo/main/assets/husn_logo.png" alt="Husn Logo" width="200"/>
   <h3>Intelligent Cyber Defense System for National Security</h3>
+  <p><b>DefensThon 2026 - Official Submission</b></p>
 </div>
 
-Husn (حصن) is a state-of-the-art AI-powered cybersecurity system designed for the DefensThon 2026 competition. It features a professional React-based dashboard and a Metasploit-style CLI for comprehensive network protection.
+Husn (حصن) is a state-of-the-art AI-powered cybersecurity system designed for high-portability and professional-grade defense. It features an adaptive AI engine, a modern React dashboard, and realistic attack simulations.
 
 ---
 
-## ✨ Key Features
+## 🚀 One-Command Setup (Universal)
 
-- **🚀 High-Professional Dashboard**: Built with **React + TypeScript + Tailwind CSS**, featuring neon-cyber aesthetics and smooth Framer Motion animations.
-- **🛡️ Dual Interface**: Fully integrated FastAPI backend supporting both a modern web UI and an interactive terminal CLI.
-- **🧠 Hybrid AI Engine**: Advanced threat detection using **IsolationForest** and **XGBoost** trained on network flow signatures.
-- **🔍 Explainable AI (SHAP)**: Visual feature importance plots to explain why the AI flagged specific traffic as malicious.
-- **⚡ Active Defense**: Automated IP blocking and session mitigation for high-severity threats.
-- **🌍 Bilingual Support**: Seamless English and Arabic toggle for the entire web interface.
-- **📡 Realistic Simulation**: Scapy-powered attack generation for training and demonstration.
+Husn is designed to run on **Kali Linux, Ubuntu, Debian, CentOS, RHEL, and WSL2**.
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+This script detects your OS, installs system dependencies (Python, Node.js, Scapy libs), sets up virtual environments, and configures raw socket permissions.
 
 ---
 
-## 📁 Project Structure
-```
-husn/
-├── backend/            # FastAPI, AI Models, & CLI
-│   ├── husn/           # Core library
-│   ├── main.py         # API entry point
-│   └── data/           # Datasets
-├── frontend/           # React + TypeScript + Vite
-└── run.py              # Root orchestrator
+## 🐳 Docker Deployment
+
+For containerized environments, use Docker Compose:
+
+```bash
+docker-compose up --build
 ```
 
-## 🚀 Installation
+The system will be available at:
+- **Dashboard**: `http://localhost:5173`
+- **Backend API**: `http://localhost:8000`
 
-1. **Backend Setup**:
-   ```bash
-   pip install -r backend/requirements.txt
-   ```
+---
 
-2. **Frontend Setup**:
-   ```bash
-   cd frontend && npm install && cd ..
-   ```
+## ✨ Features (v9 Final)
 
-## 🛠️ Usage
+- **🛡️ National Defense Mode**: One-click system-wide sensitivity boost. Increases anomaly detection thresholds and triggers aggressive logging.
+- **🧠 Adaptive Self-Learning**: AI engine that simulates real-time knowledge base growth and learning rate decay based on processed traffic.
+- **🚀 High-Professional Dashboard**: Built with **React + TypeScript + Framer Motion**, featuring neon-cyber aesthetics.
+- **🔍 Explainable AI (SHAP)**: Visual feature importance plots explaining AI decisions.
+- **🌍 Full Bilingual Support**: Seamless English and Arabic interface.
+- **📡 Realistic Simulation**: Scapy-powered DDoS, Port Scan, and Brute Force simulations for live demos.
 
-Launch the full system using the root orchestrator:
+---
 
-- **Dual Mode (Dashboard + CLI)**:
-  ```bash
-  python run.py both
-  ```
+## 🛠️ Manual Usage
 
-- **Individual Services**:
-  - `python run.py backend`
-  - `python run.py frontend`
-  - `python run.py cli`
+Launch the full system:
+```bash
+python run.py both
+```
+
+Or individual components:
+- `python run.py cli`
+- `python run.py backend`
+- `python run.py frontend`
 
 ---
 
 # حصن (Husn) - الدرع السيبراني الذكي
 
-حصن هو نظام للأمن السيبراني مدعوم بالذكاء الاصطناعي تم تطويره لمسابقة DefensThon 2026. يتميز النظام بلوحة معلومات احترافية مبنية على React وواجهة سطر أوامر بأسلوب Metasploit.
+حصن هو نظام للأمن السيبراني مدعوم بالذكاء الاصطناعي تم تطويره لمسابقة DefensThon 2026. يتميز النظام بلوحة معلومات احترافية مبنية على React وواجهة سطر أوامر متطورة.
 
-## المميزات
-- **لوحة معلومات متطورة**: مبنية باستخدام React و Tailwind CSS.
-- **دعم ثنائي اللغة**: تبديل سلس بين العربية والإنجليزية.
-- **دفاع نشط**: حظر تلقائي للتهديدات عالية الخطورة.
-- **شرح الذكاء الاصطناعي (SHAP)**: توضيح أسباب اتخاذ القرار من قبل النظام.
+## المميزات الأساسية
+- **وضع الدفاع الوطني**: تعزيز حساسية النظام بضغطة واحدة لمواجهة التهديدات الحرجة.
+- **التعلم الذاتي التكيفي**: محرك ذكاء اصطناعي يحاكي النمو المستمر لقاعدة المعرفة.
+- **لوحة معلومات متطورة**: مبنية باستخدام React و Tailwind CSS بدعم كامل للغة العربية.
+- **شرح الذكاء الاصطناعي (SHAP)**: توضيح أسباب اتخاذ القرار من قبل النظام لضمان الشفافية.

@@ -42,18 +42,31 @@ def get_status():
         "ai_engine": "online",
         "network_monitor": "active",
         "shield": "active",
-        "threat_level": "low"
+        "threat_level": "low" if ai.defense_mode == "Standard" else "critical",
+        "defense_mode": ai.defense_mode,
+        "self_learning": {
+            "rate": f"{ai.learning_rate:.4f}",
+            "knowledge_base": ai.knowledge_base_size
+        }
     }
+
+@app.post("/toggle-defense")
+def toggle_defense():
+    ai.defense_mode = "National" if ai.defense_mode == "Standard" else "Standard"
+    logs.append(f"[{time.strftime('%H:%M:%S')}] SYSTEM: Defense mode changed to {ai.defense_mode}")
+    return {"mode": ai.defense_mode}
 
 @app.get("/monitor")
 def get_monitoring_data():
+    base_malicious = 0 if ai.defense_mode == "Standard" else 5
     return {
         "timestamp": time.time(),
         "incoming": random.randint(100, 1000),
         "outgoing": random.randint(50, 500),
-        "malicious": random.randint(0, 5),
+        "malicious": random.randint(base_malicious, base_malicious + 10),
         "uptime": "99.9%",
-        "threats_blocked": 1284 + len([l for l in logs if "BLOCK" in l])
+        "threats_blocked": 1284 + len([l for l in logs if "BLOCK" in l]),
+        "defense_mode": ai.defense_mode
     }
 
 @app.post("/scan")

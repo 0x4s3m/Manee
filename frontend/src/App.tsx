@@ -49,6 +49,8 @@ function App() {
   const [monitorData, setMonitorData] = useState<any[]>([]);
   const [shapData, setShapData] = useState<any>(null);
   const [isExplaining, setIsExplaining] = useState(false);
+  const [systemStatus, setSystemStatus] = useState<any>(null);
+  const [isToggling, setIsToggling] = useState(false);
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const T = translations[lang];
@@ -60,6 +62,7 @@ function App() {
   useEffect(() => {
     const interval = setInterval(() => {
       fetchMonitor();
+      fetchStatus();
     }, 2000);
     return () => clearInterval(interval);
   }, []);
@@ -69,6 +72,22 @@ function App() {
       const res = await axios.get(`${API_BASE}/monitor`);
       setMonitorData((prev) => [...prev.slice(-14), { time: new Date().toLocaleTimeString().split(' ')[0], ...res.data }]);
     } catch (err) { console.error("API Offline"); }
+  };
+
+  const fetchStatus = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/status`);
+      setSystemStatus(res.data);
+    } catch (err) { console.error(err); }
+  };
+
+  const toggleDefense = async () => {
+    setIsToggling(true);
+    try {
+      await axios.post(`${API_BASE}/toggle-defense`);
+      await fetchStatus();
+    } catch (err) { console.error(err); }
+    setIsToggling(false);
   };
 
   const addLog = (msg: string) => {
@@ -160,7 +179,7 @@ function App() {
           </button>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 space-y-4">
           <div className="bg-black/40 rounded-lg p-3 border border-white/5">
              <div className="flex justify-between items-center mb-2">
                 <span className="text-[10px] text-gray-500 uppercase tracking-widest">{lang === 'en' ? 'System Load' : 'حمل النظام'}</span>
@@ -170,6 +189,15 @@ function App() {
                 <motion.div animate={{ width: ['20%', '45%', '30%'] }} transition={{ repeat: Infinity, duration: 4 }} className="h-full bg-neon-cyan"></motion.div>
              </div>
           </div>
+
+          <button
+            onClick={toggleDefense}
+            disabled={isToggling}
+            className={`w-full p-3 rounded-lg border text-[10px] font-black uppercase tracking-tighter transition-all flex flex-col items-center gap-1 ${systemStatus?.defense_mode === 'National' ? 'bg-red-500/20 border-red-500 text-red-500 animate-pulse' : 'bg-white/5 border-white/10 text-gray-500 hover:bg-white/10'}`}
+          >
+             <span>{T.nationalDefense}</span>
+             <span className="text-[8px] opacity-50">{systemStatus?.defense_mode === 'National' ? 'ACTIVE_CRITICAL' : 'STANDBY'}</span>
+          </button>
         </div>
       </aside>
 
@@ -216,6 +244,13 @@ function App() {
             <AnimatePresence mode="wait">
               {activeTab === 'dashboard' && (
                 <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-10">
+
+                  {/* Novelty Stats */}
+                  <div className="grid grid-cols-3 gap-6">
+                     <NoveltyCard label={T.selfLearning} value={systemStatus?.self_learning?.rate || '0.0000'} sub="LR_DECAY" color="text-neon-cyan" />
+                     <NoveltyCard label={T.kbSize} value={systemStatus?.self_learning?.knowledge_base?.toLocaleString() || '0'} sub="VECTORS" color="text-neon-green" />
+                     <NoveltyCard label={T.threat_level || 'THREAT_LVL'} value={systemStatus?.threat_level?.toUpperCase() || 'LOW'} sub="ESTIMATED" color={systemStatus?.threat_level === 'critical' ? 'text-red-500' : 'text-neon-cyan'} />
+                  </div>
 
                   {/* Realtime Graph */}
                   <div className="glass-card border-none bg-gradient-to-br from-[#121826] to-[#0d121f]">
@@ -384,6 +419,16 @@ const SidebarLink = ({ icon, label, active, onClick, lang }: any) => (
     <div className={`${active ? 'text-neon-cyan' : 'text-gray-700 group-hover:text-gray-500'} transition-colors`}>{icon}</div>
     <span className="text-[10px] font-black uppercase tracking-widest italic">{label}</span>
   </button>
+);
+
+const NoveltyCard = ({ label, value, sub, color }: any) => (
+  <div className="bg-[#121826] border border-white/5 p-5 rounded-xl">
+    <p className="text-[9px] text-gray-600 font-black uppercase tracking-widest mb-1">{label}</p>
+    <div className="flex items-baseline gap-2">
+      <p className={`text-2xl font-black italic tracking-tighter ${color}`}>{value}</p>
+      <span className="text-[8px] text-gray-700 font-bold">{sub}</span>
+    </div>
+  </div>
 );
 
 export default App;

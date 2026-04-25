@@ -47,6 +47,44 @@ The system will be available at:
 
 ---
 
+## 🏆 Live Demo Guide (For Judges)
+
+To deliver an impressive demonstration, follow these steps:
+
+### 1. Preparation
+Ensure all dependencies are installed using `./setup.sh`.
+
+### 2. The Launch
+Run the dual-mode system to show both the CLI and the Web Dashboard simultaneously:
+```bash
+python run.py both
+```
+*   **Narrative**: "We start with our dual-interface approach: a high-speed terminal for operators and a modern command center for decision-makers."
+
+### 3. The Dashboard (Bilingual & Real-time)
+*   Open `http://localhost:5173`.
+*   Toggle the **Arabic/English** button to show localization.
+*   Point out the **Real-time Monitoring** graphs and the **Adaptive Self-Learning** cards showing the KB Size growing.
+
+### 4. The Attack Simulation (The Climax)
+*   Go to the **Attack Simulation** section.
+*   Select **"DDoS Attack"** or **"SSH Brute Force"**.
+*   Click **"Simulate"**.
+*   **Switch to the Terminal**: Show the Scapy packets flooding the console.
+*   **Back to Dashboard**: Watch the **"Malicious"** traffic spike and the **Active Shield** logs automatically blocking the source IP.
+
+### 5. Explainable AI (SHAP)
+*   Navigate to **Explainable AI**.
+*   Click **"Run SHAP Engine"**.
+*   **Narrative**: "Judges, Husn doesn't just block; it explains. Here we see exactly which network features (like Packet Length or Inter-arrival Time) triggered our AI's decision."
+
+### 6. National Defense Mode
+*   Toggle the **"National Defense Mode"** button.
+*   Watch the UI turn red and detection sensitivity increase.
+*   **Narrative**: "In times of crisis, our National Defense Mode hardens the infrastructure instantly, prioritizing security over latency."
+
+---
+
 ## 🛠️ Manual Usage
 
 Launch the full system:

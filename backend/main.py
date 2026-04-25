@@ -86,6 +86,8 @@ def trigger_simulation(req: SimulationRequest):
         sim.ddos_simulation(count=20)
     elif "Port" in req.attack_type:
         sim.port_scan_simulation()
+    elif "RCE" in req.attack_type:
+        sim.rce_exploit_simulation()
     else:
         sim.brute_force_simulation()
 

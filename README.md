@@ -83,6 +83,16 @@ python run.py both
 *   Watch the UI turn red and detection sensitivity increase.
 *   **Narrative**: "In times of crisis, our National Defense Mode hardens the infrastructure instantly, prioritizing security over latency."
 
+### 🛡️ 7. The "Live Exploit" (Ultimate Demo)
+Husn includes a dedicated vulnerable service to demonstrate real-time RCE detection.
+1.  **Start Target**: Run `python backend/vuln_app.py` in a separate terminal (Port 9000).
+2.  **Execute Exploit**: Run `python exploit_demo.py` in another terminal.
+3.  **Observation**:
+    *   The exploit will successfully trigger command injection on the target.
+    *   **Simultaneously**, Husn will detect the malicious network signatures.
+    *   Check the Dashboard: You will see **"Infiltration"** or **"Web Attack"** pop up in the SIEM feed.
+    *   The **Active Shield** will immediately log the source IP being blocked.
+
 ---
 
 ## 🛠️ Manual Usage

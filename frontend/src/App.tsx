@@ -13,7 +13,9 @@ import {
   Activity,
   Cpu,
   Lock,
-  ChevronRight
+  ChevronRight,
+  Zap,
+  AlertTriangle
 } from 'lucide-react';
 import {
   BarChart,
@@ -63,6 +65,7 @@ function App() {
     const interval = setInterval(() => {
       fetchMonitor();
       fetchStatus();
+      fetchLogs();
     }, 2000);
     return () => clearInterval(interval);
   }, []);
@@ -78,6 +81,13 @@ function App() {
     try {
       const res = await axios.get(`${API_BASE}/status`);
       setSystemStatus(res.data);
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchLogs = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/logs`);
+      setLogs(res.data);
     } catch (err) { console.error(err); }
   };
 
@@ -98,32 +108,34 @@ function App() {
     if (!target) return;
     setIsScanning(true);
     setResults([]);
-    setLogs([]);
     addLog(`INIT_SCAN: Loading HUSN heuristics for ${target}...`);
 
-    setTimeout(() => addLog(`[+] Establishing secure handshake with ${target}`), 800);
-    setTimeout(() => addLog(`[*] Port discovery in progress...`), 1500);
-    setTimeout(() => addLog(`[!] 0x42: Insecure cookie attribute detected`), 3000);
-    setTimeout(() => addLog(`[*] Analyzing payload injection points...`), 4500);
-
     try {
-      await axios.post(`${API_BASE}/scan`, { target });
+      const res = await axios.post(`${API_BASE}/scan`, { target });
 
       setTimeout(() => {
-        addLog(`[+] Scan finalized. Parsing results...`);
-        setResults([
-          { id: '1', name: lang === 'en' ? 'SQL Injection' : 'حقن SQL', severity: 'Critical', description: lang === 'en' ? 'Blind SQLi detected in POST parameter "user_id". DB compromise imminent.' : 'تم اكتشاف حقن SQL أعمى في معلمة POST. اختراق قاعدة البيانات وشيك.' },
-          { id: '2', name: lang === 'en' ? 'Broken Access Control' : 'كسر التحكم في الوصول', severity: 'High', description: lang === 'en' ? 'Endpoint /admin/config accessible without session validation.' : 'نقطة النهاية /admin/config متاحة بدون التحقق من الجلسة.' },
-          { id: '3', name: lang === 'en' ? 'Information Disclosure' : 'كشف المعلومات', severity: 'Medium', description: lang === 'en' ? 'Server version (nginx/1.18.0) exposed in HTTP headers.' : 'إصدار الخادم (nginx/1.18.0) مكشوف في ترويسات HTTP.' }
-        ]);
+        addLog(`[+] Scan finalized. Parsing AI results...`);
+        setResults(res.data.map((r: any, i: number) => ({
+            id: i.toString(),
+            name: r.label,
+            severity: r.severity,
+            description: `Confidence: ${(r.confidence * 100).toFixed(2)}% | Action: ${r.action}`
+        })));
         setIsScanning(false);
-        addLog(`[DONE] Scan complete. 3 vulnerabilities mapped.`);
-      }, 7000);
+        addLog(`[DONE] Scan complete.`);
+      }, 3000);
 
     } catch (err) {
       addLog(`[ERR] Failed to connect to AI backend.`);
       setIsScanning(false);
     }
+  };
+
+  const triggerSim = async (type: string) => {
+    addLog(`INIT_SIM: Requesting ${type} against ${target || '127.0.0.1'}...`);
+    try {
+      await axios.post(`${API_BASE}/simulate`, { target_ip: target || '127.0.0.1', attack_type: type });
+    } catch (err) { addLog(`[ERR] Simulation engine offline.`); }
   };
 
   const fetchExplanation = async () => {
@@ -243,13 +255,13 @@ function App() {
           <div className="flex-1 overflow-y-auto pr-4 terminal-scroll">
             <AnimatePresence mode="wait">
               {activeTab === 'dashboard' && (
-                <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-10">
+                <motion.div key="dashboard" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-10">
 
                   {/* Novelty Stats */}
                   <div className="grid grid-cols-3 gap-6">
                      <NoveltyCard label={T.selfLearning} value={systemStatus?.self_learning?.rate || '0.0000'} sub="LR_DECAY" color="text-neon-cyan" />
                      <NoveltyCard label={T.kbSize} value={systemStatus?.self_learning?.knowledge_base?.toLocaleString() || '0'} sub="VECTORS" color="text-neon-green" />
-                     <NoveltyCard label={T.threat_level || 'THREAT_LVL'} value={systemStatus?.threat_level?.toUpperCase() || 'LOW'} sub="ESTIMATED" color={systemStatus?.threat_level === 'critical' ? 'text-red-500' : 'text-neon-cyan'} />
+                     <NoveltyCard label={lang === 'en' ? 'THREAT LEVEL' : 'مستوى التهديد'} value={systemStatus?.threat_level?.toUpperCase() || 'LOW'} sub="ESTIMATED" color={systemStatus?.threat_level === 'critical' ? 'text-red-500' : 'text-neon-cyan'} />
                   </div>
 
                   {/* Realtime Graph */}
@@ -316,8 +328,42 @@ function App() {
                 </motion.div>
               )}
 
+              {activeTab === 'exploits' && (
+                <motion.div key="exploits" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-10">
+                  <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter">{T.simulation}</h2>
+                  <div className="grid grid-cols-2 gap-8">
+                    <SimulationButton label="DDoS Attack" onClick={() => triggerSim('DDoS')} />
+                    <SimulationButton label="Port Scan" onClick={() => triggerSim('Port Scan')} />
+                    <SimulationButton label="SSH Brute Force" onClick={() => triggerSim('Brute Force')} />
+                    <SimulationButton label={T.rceExploit} onClick={() => triggerSim('RCE Exploit')} highlight />
+                  </div>
+                  <div className="p-8 rounded-2xl border border-red-500/20 bg-red-500/5 mt-10">
+                    <div className="flex items-center gap-3 mb-4">
+                        <AlertTriangle className="text-red-500" size={20} />
+                        <h3 className="text-red-500 font-black uppercase italic tracking-widest text-xs">Live Vulnerability Testing</h3>
+                    </div>
+                    <p className="text-xs text-gray-500 leading-relaxed uppercase">
+                        {lang === 'en'
+                            ? 'The "RCE Exploit" simulation targets the legacy government portal on port 9000. It triggers a real-world command injection sequence while generating malicious network flow signatures for the AI to classify and block.'
+                            : 'يحاكي "استغلال RCE" هجوماً على بوابة الحكومة القديمة على المنفذ 9000. يقوم بتشغيل تسلسل حقن أوامر حقيقي مع إنشاء تواقيع تدفق شبكة ضارة ليقوم الذكاء الاصطناعي بتصنيفها وحظرها.'}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+
+              {activeTab === 'payloads' && (
+                <motion.div key="payloads" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-10">
+                    <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter">{T.payloads}</h2>
+                    <div className="grid grid-cols-3 gap-6">
+                        <PayloadCard title="SQL Injection" payload="' OR 1=1 --" />
+                        <PayloadCard title="XSS" payload="<script>alert(1)</script>" />
+                        <PayloadCard title="RCE" payload="; cat /etc/passwd" />
+                    </div>
+                </motion.div>
+              )}
+
               {activeTab === 'xai' && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10">
+                <motion.div key="xai" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-10">
                   <div className="flex justify-between items-end">
                     <div>
                       <h2 className="text-3xl font-black text-white uppercase italic tracking-tighter">{T.explainableAI}</h2>
@@ -384,7 +430,7 @@ function App() {
                 {logs.map((log, i) => (
                   <div key={i} className="flex gap-3">
                     <span className="text-gray-700 font-bold">{i.toString(16).padStart(4, '0')}</span>
-                    <span className={log.includes('!') ? 'text-red-500' : log.includes('[+]') ? 'text-neon-cyan' : 'text-gray-500'}>
+                    <span className={log.includes('!') ? 'text-red-500' : (log.includes('[+]') || log.includes('ACTIVE')) ? 'text-neon-cyan' : 'text-gray-500'}>
                       {log}
                     </span>
                   </div>
@@ -429,6 +475,26 @@ const NoveltyCard = ({ label, value, sub, color }: any) => (
       <span className="text-[8px] text-gray-700 font-bold">{sub}</span>
     </div>
   </div>
+);
+
+const SimulationButton = ({ label, onClick, highlight }: any) => (
+  <button
+    onClick={onClick}
+    className={`p-10 rounded-2xl border font-black uppercase italic tracking-tighter transition-all hover:scale-[1.02] active:scale-[0.98] text-center flex flex-col items-center justify-center gap-3 ${highlight ? 'bg-red-500/10 border-red-500 text-red-500 shadow-[0_0_20px_rgba(239,68,68,0.2)]' : 'bg-[#121826] border-white/5 text-white hover:border-neon-cyan/50 hover:bg-white/5'}`}
+  >
+    <Skull size={24} className={highlight ? 'text-red-500' : 'text-gray-700'} />
+    <span className="text-sm">{label}</span>
+  </button>
+);
+
+const PayloadCard = ({ title, payload }: any) => (
+    <div className="bg-[#121826] border border-white/5 p-6 rounded-xl hover:border-neon-cyan/30 transition-all cursor-pointer group">
+        <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4 group-hover:text-neon-cyan">{title}</h4>
+        <code className="text-xs text-white block bg-black/50 p-3 rounded border border-white/5 font-mono">{payload}</code>
+        <div className="mt-4 flex justify-end">
+            <Zap size={14} className="text-gray-700 group-hover:text-neon-cyan" />
+        </div>
+    </div>
 );
 
 export default App;

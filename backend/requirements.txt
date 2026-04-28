@@ -11,3 +11,10 @@ scapy
 matplotlib
 prompt_toolkit
 requests
+psutil
+jinja2
+pyyaml
+apscheduler
+python-dotenv
+pyjwt
+bcrypt

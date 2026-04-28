@@ -43,12 +43,19 @@ python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
+export PYTHONPATH="$(pwd)"
+python -m husn.src.ai.data_gen
+python -m husn.src.ai.model
 cd ..
 
 # Install Frontend Dependencies
 echo "Setting up Frontend (React)..."
 cd frontend
-npm install
+if [ -f package-lock.json ]; then
+    npm ci --no-bin-links
+else
+    npm install --no-bin-links
+fi
 cd ..
 
 # Scapy Raw Socket Permissions

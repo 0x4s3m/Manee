@@ -1,0 +1,25 @@
+[Unit]
+Description=Husn — intentionally vulnerable demo target (port 9000)
+After=network-online.target husn-backend.service
+PartOf=husn-backend.service
+
+[Service]
+Type=simple
+User=husn
+Group=husn
+WorkingDirectory=/opt/husn/backend
+Environment=PYTHONPATH=/opt/husn/backend
+Environment=HUSN_SHARED_STATE=/var/log/husn/blocked.json
+ExecStart=/opt/husn/backend/venv/bin/python vuln_app.py
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/log/husn /etc/husn
+
+[Install]
+WantedBy=multi-user.target

@@ -1,120 +1,187 @@
-# Husn (حصن) - Intelligent Cyber Shield (Final Polish)
+# Husn (حصن) — Intelligent Cyber Defense System
 
 <div align="center">
-  <h3>Intelligent Cyber Defense System for National Security</h3>
-  <p><b>DefensThon 2026 - Official Submission</b></p>
+  <h3>AI-powered defense for national infrastructure</h3>
+  <p><b>DefensThon 2026 — Official Submission</b></p>
 </div>
 
-Husn (حصن) is a state-of-the-art AI-powered cybersecurity system designed for high-portability and professional-grade defense. It features an adaptive AI engine, a modern React dashboard, and realistic attack simulations.
+Husn is a deployable cyber-defense agent. It combines a hybrid AI engine
+(IsolationForest + XGBoost + SHAP), real-time host telemetry, active
+iptables-based blocking, and rich HTML email alerts into a single bilingual
+dashboard. It runs equally well on a laptop for a live demo or as a hardened
+systemd service on a public VPS.
 
 ---
 
-## 🚀 One-Command Setup (Universal)
+## Two ways to run it
 
-Husn is designed to run on **Kali Linux, Ubuntu, Debian, CentOS, RHEL, and WSL2**.
-
+### 1. Local demo (Kali / Ubuntu / WSL2)
 ```bash
-chmod +x setup.sh
-./setup.sh
-```
-
-This script detects your OS, installs system dependencies (Python, Node.js, Scapy libs), sets up virtual environments, and configures raw socket permissions.
-
----
-
-## 🐳 Docker Deployment
-
-For containerized environments, use Docker Compose:
-
-```bash
-docker-compose up --build
-```
-
-The system will be available at:
-- **Dashboard**: `http://localhost:5173`
-- **Backend API**: `http://localhost:8000`
-
----
-
-## ✨ Features (v9 Final)
-
-- **🛡️ National Defense Mode**: One-click system-wide sensitivity boost. Increases anomaly detection thresholds and triggers aggressive logging.
-- **🧠 Adaptive Self-Learning**: AI engine that simulates real-time knowledge base growth and learning rate decay based on processed traffic.
-- **🚀 High-Professional Dashboard**: Built with **React + TypeScript + Framer Motion**, featuring neon-cyber aesthetics.
-- **🔍 Explainable AI (SHAP)**: Visual feature importance plots explaining AI decisions.
-- **🌍 Full Bilingual Support**: Seamless English and Arabic interface.
-- **📡 Realistic Simulation**: Scapy-powered DDoS, Port Scan, and Brute Force simulations for live demos.
-
----
-
-## 🏆 Live Demo Guide (For Judges)
-
-To deliver an impressive demonstration, follow these steps:
-
-### 1. Preparation
-Ensure all dependencies are installed using `./setup.sh`.
-
-### 2. The Launch
-Run the dual-mode system to show both the CLI and the Web Dashboard simultaneously:
-```bash
+chmod +x setup.sh && ./setup.sh
 python run.py both
 ```
-*   **Narrative**: "We start with our dual-interface approach: a high-speed terminal for operators and a modern command center for decision-makers."
+- Dashboard: http://localhost:5173
+- API:       http://localhost:8000
+- Vuln target: http://localhost:9000
+- Interactive CLI in the terminal
 
-### 3. The Dashboard (Bilingual & Real-time)
-*   Open `http://localhost:5173`.
-*   Toggle the **Arabic/English** button to show localization.
-*   Point out the **Real-time Monitoring** graphs and the **Adaptive Self-Learning** cards showing the KB Size growing.
-
-### 4. The Attack Simulation (The Climax)
-*   Go to the **Attack Simulation** section.
-*   Select **"DDoS Attack"** or **"SSH Brute Force"**.
-*   Click **"Simulate"**.
-*   **Switch to the Terminal**: Show the Scapy packets flooding the console.
-*   **Back to Dashboard**: Watch the **"Malicious"** traffic spike and the **Active Shield** logs automatically blocking the source IP.
-
-### 5. Explainable AI (SHAP)
-*   Navigate to **Explainable AI**.
-*   Click **"Run SHAP Engine"**.
-*   **Narrative**: "Judges, Husn doesn't just block; it explains. Here we see exactly which network features (like Packet Length or Inter-arrival Time) triggered our AI's decision."
-
-### 6. National Defense Mode
-*   Toggle the **"National Defense Mode"** button.
-*   Watch the UI turn red and detection sensitivity increase.
-*   **Narrative**: "In times of crisis, our National Defense Mode hardens the infrastructure instantly, prioritizing security over latency."
-
-### 🛡️ 7. The "Live Exploit" (Ultimate Demo)
-Husn includes a dedicated vulnerable service to demonstrate real-time RCE detection.
-1.  **Start Target**: Run `python backend/vuln_app.py` in a separate terminal (Port 9000).
-2.  **Execute Exploit**: Run `python exploit_demo.py` in another terminal.
-3.  **Observation**:
-    *   The exploit will successfully trigger command injection on the target.
-    *   **Simultaneously**, Husn will detect the malicious network signatures.
-    *   Check the Dashboard: You will see **"Infiltration"** or **"Web Attack"** pop up in the SIEM feed.
-    *   The **Active Shield** will immediately log the source IP being blocked.
-
----
-
-## 🛠️ Manual Usage
-
-Launch the full system:
+### 2. Production server install
 ```bash
-python run.py both
+sudo HUSN_DOMAIN=husn.your-org.sa HUSN_WITH_NGINX=yes ./install.sh
+sudo nano /etc/husn/config.yml      # set SMTP + recipients
+sudo systemctl edit husn-backend    # add HUSN_SMTP_PASSWORD env var
+sudo certbot --nginx -d husn.your-org.sa
+```
+After install:
+```
+systemctl status husn-backend husn-frontend
+journalctl -u husn-backend -f
+sudo -u husn /opt/husn/backend/venv/bin/python -m husn.src.cli
 ```
 
-Or individual components:
-- `python run.py cli`
-- `python run.py backend`
-- `python run.py frontend`
+---
+
+## What's inside
+
+### AI engine
+- **IsolationForest** for unsupervised anomaly detection (zero-day-shaped traffic).
+- **XGBoost classifier** labelling traffic as `BENIGN / DDoS / PortScan / Brute Force / Infiltration / Web Attack`.
+- **SHAP** for per-decision feature importance — surfaced in the dashboard *and* embedded inline in alert emails.
+- **Adaptive Self-Learning**: knowledge-base counter grows and learning-rate decays as traffic flows through.
+- **National Defense Mode**: a one-click sensitivity boost that lowers the anomaly threshold and re-themes the UI to red.
+
+### Active defense
+- `DefenseResponse.block_ip()` either logs (dev) or shells out to `iptables -A INPUT -s <ip> -j DROP` (prod). Toggle via `response.real_iptables` in `config.yml`.
+- Whitelist of never-blocked CIDRs (your laptop, monitoring, the gateway).
+- Optional auto-unblock after `block_duration_seconds`.
+- Per-IP throttle (`notify.throttle_seconds`) keeps a 1000-packet flood from sending 1000 emails.
+
+### Host telemetry
+- `/system/hardware`, `/system/ports`, `/system/processes`, `/system/network`, `/system/scan` — all `psutil`-driven, no external deps.
+- Suspicious-process heuristics: known malware names, executables in `/tmp`/`/dev/shm`, untrusted-path binaries with active connections, cryptominer command-line signatures.
+- TCP-connect scanner with optional `nmap -sV` upgrade if the binary is on PATH.
+
+### Notifications
+- SMTP (Gmail / Office365 / SES / self-hosted) — config-driven, gracefully degrades if disabled.
+- HTML email with the SHAP feature-importance chart inlined as a CID image.
+- Recipients editable at runtime from the dashboard.
+- Reports also persisted as Markdown + HTML + JSON under `paths.reports_dir`.
+
+### Self-update channel
+- Git-based: `update` / `check` commands in CLI, mirror endpoints `/updates/check` and `/updates/apply`.
+- Background scheduler runs `check` every 5 minutes (configurable). With `auto_apply: true` it pulls automatically; otherwise it just notifies.
+- Refuses to overwrite a dirty working tree, refuses non-fast-forward pulls, and re-runs `pip install` only when `requirements.txt` actually changed.
+
+### Bilingual dashboard
+- React 19 + TypeScript + Tailwind v4 + Framer Motion + Recharts.
+- Sidebar tabs: Dashboard · Host · Network · Detection · Simulation · XAI · Defense · Updates · Payloads.
+- Full RTL Arabic mode with one-click toggle.
+
+### Professional CLI
+```
+husn > sysinfo                # hardware + OS + interfaces
+husn > ports                  # listening ports + owning process
+husn > services               # one row per service
+husn > procs --suspicious     # only the flagged ones
+husn > scan 192.0.2.10        # nmap -sV / TCP-connect
+husn > simulate               # run an attack
+husn > blocked                # currently blocked IPs
+husn > check                  # update check
+husn > update                 # apply pending update
+husn > report-test            # send a test email through SMTP
+husn > status                 # holistic system status
+```
 
 ---
 
-# حصن (Husn) - الدرع السيبراني الذكي
+## Live contest demo (judges)
 
-حصن هو نظام للأمن السيبراني مدعوم بالذكاء الاصطناعي تم تطويره لمسابقة DefensThon 2026. يتميز النظام بلوحة معلومات احترافية مبنية على React وواجهة سطر أوامر متطورة.
+This is the runbook for the on-stage demo against your VPS:
 
-## المميزات الأساسية
-- **وضع الدفاع الوطني**: تعزيز حساسية النظام بضغطة واحدة لمواجهة التهديدات الحرجة.
-- **التعلم الذاتي التكيفي**: محرك ذكاء اصطناعي يحاكي النمو المستمر لقاعدة المعرفة.
-- **لوحة معلومات متطورة**: مبنية باستخدام React و Tailwind CSS بدعم كامل للغة العربية.
-- **شرح الذكاء الاصطناعي (SHAP)**: توضيح أسباب اتخاذ القرار من قبل النظام لضمان الشفافية.
+1. **Show the dashboard** at `https://your-domain.sa`. Toggle EN/AR.
+2. **Open the Host tab** — judges see real CPU/RAM/disk, real listening ports, real processes. *This is not a mockup.*
+3. **From your laptop**, run the exploit against the public VPS:
+   ```bash
+   python exploit_demo.py http://your-domain.sa:9000
+   ```
+4. **In the dashboard**:
+   - Defense tab: a new blocked-IP entry appears, showing your laptop's source IP.
+   - SIEM feed: the attack is classified.
+   - Email: an alert lands in the recipients' inbox within seconds, with the SHAP chart inline.
+5. **Judges can attempt to re-hit** the vuln endpoint from your laptop — it now times out, because iptables really dropped them.
+6. **Open the Updates tab** and run `Check Now` to demonstrate the self-update channel is live.
+
+---
+
+## Configuration reference
+
+All runtime settings live in `/etc/husn/config.yml` (production) or `config/config.yml` (local override). See `config/config.example.yml` for the full annotated template. Secrets live only in environment variables — any key ending in `_env` names the env var to read.
+
+```yaml
+domain: husn.your-org.sa
+smtp:
+  enabled: true
+  host: smtp.gmail.com
+  port: 587
+  use_tls: true
+  user: alerts@your-org.sa
+  password_env: HUSN_SMTP_PASSWORD
+  from_addr: "Husn Defender <alerts@your-org.sa>"
+recipients: [admin@your-org.sa, soc@your-org.sa]
+response:
+  real_iptables: true
+  block_duration_seconds: 3600
+  whitelist: [127.0.0.1, 10.0.0.0/8]
+notify:
+  throttle_seconds: 60
+  attach_shap_chart: true
+updater:
+  enabled: true
+  interval_minutes: 5
+  auto_apply: false
+  repo_url: git@github.com:your-org/husn.git
+  branch: main
+```
+
+---
+
+## File layout
+
+```
+husn/
+├── install.sh                         # production VPS installer
+├── uninstall.sh
+├── setup.sh                           # local-machine setup (apt + venv + npm)
+├── run.py                             # local dual-mode launcher
+├── docker-compose.yml + Dockerfile
+├── config/config.example.yml
+├── deploy/                            # systemd units + nginx template
+│   ├── husn-backend.service
+│   ├── husn-frontend.service
+│   └── nginx-husn.conf
+├── backend/
+│   ├── main.py                        # FastAPI surface
+│   ├── vuln_app.py                    # *intentionally* vulnerable demo target
+│   └── husn/
+│       └── src/
+│           ├── ai/      model.py · data_gen.py
+│           ├── core/    response.py · simulator.py
+│           ├── system/  hardware · processes · network · scanner
+│           ├── notify/  mailer · report
+│           ├── updater/ updater
+│           ├── config.py
+│           └── cli.py
+├── frontend/                          # React 19 + Tailwind 4 dashboard
+└── exploit_demo.py                    # canned attack you'll run on stage
+```
+
+---
+
+# حصن — الدرع السيبراني الذكي
+
+نظام دفاع سيبراني قابل للنشر، يجمع بين محرك ذكاء اصطناعي هجين (IsolationForest + XGBoost + SHAP)، ومراقبة المضيف في الوقت الفعلي، وحظر فعلي عبر iptables، وتقارير بريد إلكتروني غنية، في لوحة تحكم ثنائية اللغة واحدة.
+
+**التشغيل المحلي**: `./setup.sh && python run.py both`
+**التثبيت على خادم إنتاجي**: `sudo HUSN_DOMAIN=husn.example.sa HUSN_WITH_NGINX=yes ./install.sh`
+
+المميزات: وضع الدفاع الوطني · التعلم الذاتي التكيفي · شرح SHAP · حظر فعلي بـ iptables · تنبيهات بريدية فورية · تحديث ذاتي كل 5 دقائق · واجهة CLI احترافية · لوحة تحكم بالعربية والإنجليزية.

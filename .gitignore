@@ -1,0 +1,51 @@
+# ────── Build artefacts ─────────────────────────────────────────────
+backend/venv/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.vite-temp/
+
+attacker-kit/.venv/
+attacker-kit.zip
+
+# ────── Runtime state (NEVER commit — contains secrets / user data) ──
+backend/reports/
+logs/
+*.log
+
+# Auto-generated Husn state files (contain bcrypt hashes, JWT secrets, etc.)
+config/users.yml
+config/husn-learning.db
+config/runtime.yml
+config/blocked.json
+
+# Anything you customise locally — keep config.example.yml as the template
+config/config.yml
+
+# ────── Local env / secrets ─────────────────────────────────────────
+.env
+.env.*
+*.pem
+*.key
+secrets/
+credentials.json
+
+# ────── OS / editor cruft ───────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ────── Old screenshots that bloat the repo ─────────────────────────
+final_v8_*.png

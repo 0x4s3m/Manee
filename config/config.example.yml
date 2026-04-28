@@ -1,0 +1,111 @@
+# Husn (حصن) — Production Configuration Template
+# Copy to /etc/husn/config.yml on the target server, then edit.
+# Secrets MUST come from environment variables (use *_env keys), never on disk.
+
+# Public domain where the dashboard is reachable. Used in email subjects/footers
+# and in the Let's Encrypt nginx config emitted by install.sh.
+domain: build-aura.com
+
+# Organisation identity that appears in email reports.
+organization:
+  name: "Saudi National Cybersecurity Center"
+  contact_url: "https://example.com/security"
+
+# SMTP transport for incident reports.
+#   Hostinger:    smtp.hostinger.com / 465 / SSL
+#   Gmail:        smtp.gmail.com / 587 / STARTTLS  (use App Password)
+#   Office365:    smtp.office365.com / 587 / STARTTLS
+#   AWS SES:      email-smtp.<region>.amazonaws.com / 587 / STARTTLS
+smtp:
+  enabled: true
+  host: smtp.hostinger.com
+  port: 465
+  use_tls: false                       # STARTTLS (port 587 path)
+  use_ssl: true                        # full SSL (port 465 path) — Hostinger uses this
+  user: husn@build-aura.com
+  password_env: HUSN_SMTP_PASSWORD     # read from env var, never inline the password
+  from_addr: "Husn Defender <husn@build-aura.com>"
+  timeout_seconds: 15
+
+# Who receives incident reports. The dashboard /recipients endpoint can mutate
+# this list at runtime; the file is the seed.
+recipients:
+  - t.m.j.a.r3@gmail.com
+
+# Active defense — actually drops packets via iptables.
+# Leave real_iptables OFF for development (blocks are simulated — recorded in
+# the in-memory registry but not enforced at the kernel). Turn it ON only on
+# the production server, and only after confirming you have a way back in.
+response:
+  real_iptables: false                 # true = real `iptables -A INPUT -s IP -j DROP`
+  block_duration_seconds: 3600         # 0 = permanent; otherwise auto-unblock after N seconds
+  # IPs and CIDRs that are NEVER blocked.
+  #
+  # WSL: include the WSL gateway (Windows host) and the WSL subnet — otherwise
+  # Windows Defender / mDNS probes look like attackers and pollute the demo.
+  # On the real mini PC, replace these with your monitoring + admin IPs.
+  whitelist:
+    - 127.0.0.1
+    - 172.16.0.0/12              # WSL2 default subnet range — covers your Windows host + WSL VM
+  # For attacking from your own laptop in a WSL test, target the eth0 IP
+  # (172.20.x.x) from another machine OR temporarily empty this list.
+
+# Alert throttling — coalesce multiple blocks of the same source IP within the window.
+# Prevents a 1000-packet DDoS from sending 1000 emails.
+notify:
+  throttle_seconds: 60
+  attach_shap_chart: true              # render the current SHAP feature-importance chart inline
+
+# Self-update channel.
+updater:
+  enabled: true
+  interval_minutes: 5                  # how often the scheduler checks
+  auto_apply: false                    # check-only by default; true = apply automatically (CAREFUL)
+  repo_url: ""                         # leave blank to disable auto-update
+  branch: main
+
+# Live packet sniffer — when enabled, Husn captures real packets on the
+# given interface, extracts the same 17 features the AI was trained on,
+# and runs them through HusnAI in near-real-time. Anomalous + non-BENIGN
+# flows trigger responder.block_ip() with the actual source IP from the
+# wire — no synthetic data, no demo button click required.
+#
+# Requires CAP_NET_RAW + CAP_NET_ADMIN (install.sh and setup.sh both grant
+# these via setcap). On a real server: enable this. On a dev laptop where
+# you don't want to capture all traffic: leave disabled and use the
+# dashboard's Simulate buttons.
+sniffer:
+  enabled: true                        # capture real packets and feed them to the AI
+  interface: ""                        # blank = scapy's default (auto-detect)
+  bpf_filter: ""                       # blank = capture everything (incl. loopback).
+                                       # In production you'd usually exclude noise
+                                       # like "ip and not host 127.0.0.1".
+
+# Threat intel — GeoIP + reputation enrichment for every blocked IP.
+intel:
+  online: true                         # allow ip-api.com + AbuseIPDB lookups
+  geoip_db_path: ""                    # optional MaxMind GeoLite2 City .mmdb path
+  abuseipdb_key_env: HUSN_ABUSEIPDB_KEY
+  cache_ttl_seconds: 86400             # 24h
+  reputation_lists: []                 # paths to local CIDR blocklists, one per line
+
+# Honeypot — opens fake services on uncommon ports. Anyone connecting gets
+# auto-blocked (real iptables drop, alert email fires). Skips ports already
+# bound by real services. Default port set deliberately avoids 22/80/443.
+honeypot:
+  enabled: true
+  ports: [23, 21, 1433, 3306, 5432, 6379, 9200, 27017]
+
+# Authentication.
+# A users.yml file is auto-created next to this config on first startup with a
+# default admin (admin / admin@). CHANGE THIS PASSWORD IMMEDIATELY in
+# production. Mutations happen at runtime via the dashboard's Users tab.
+auth:
+  users_file: ""                       # blank = <same dir as this file>/users.yml
+  token_ttl_seconds: 28800             # 8 hours
+
+# Local AI/data overrides (usually leave defaults).
+paths:
+  data_dir: ""                         # blank = use built-in backend/husn/data
+  models_dir: ""                       # blank = use built-in backend/husn/models
+  reports_dir: /var/log/husn/reports   # where Markdown/HTML/JSON reports get written

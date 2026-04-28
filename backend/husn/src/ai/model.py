@@ -5,9 +5,16 @@ from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 import joblib
-import shap
 import os
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+import shap
+from pathlib import Path
 from husn.src.core.response import DefenseResponse
+from husn.src.ai.data_gen import DEFAULT_OUTPUT_PATH, generate_synthetic_data
+
+HUSN_DIR = Path(__file__).resolve().parents[2]
+DEFAULT_DATA_PATH = DEFAULT_OUTPUT_PATH
+DEFAULT_MODEL_DIR = HUSN_DIR / "models"
 
 class HusnAI:
     def __init__(self):
@@ -26,7 +33,8 @@ class HusnAI:
             'pkt_len_mean', 'pkt_len_std', 'ack_flag_cnt', 'syn_flag_cnt'
         ]
 
-    def train(self, data_path):
+    def train(self, data_path=DEFAULT_DATA_PATH):
+        data_path = Path(data_path)
         df = pd.read_csv(data_path)
         X = df[self.features]
         y = df['label']
@@ -42,30 +50,54 @@ class HusnAI:
         self.classifier_model.fit(X_train, y_train)
 
         # Save models
-        os.makedirs("husn/models", exist_ok=True)
-        joblib.dump(self.anomaly_model, "husn/models/anomaly_model.joblib")
-        joblib.dump(self.classifier_model, "husn/models/classifier_model.joblib")
-        joblib.dump(self.label_encoder, "husn/models/label_encoder.joblib")
-        print("Models saved to husn/models/")
+        os.makedirs(DEFAULT_MODEL_DIR, exist_ok=True)
+        joblib.dump(self.anomaly_model, DEFAULT_MODEL_DIR / "anomaly_model.joblib")
+        joblib.dump(self.classifier_model, DEFAULT_MODEL_DIR / "classifier_model.joblib")
+        joblib.dump(self.label_encoder, DEFAULT_MODEL_DIR / "label_encoder.joblib")
+        print(f"Models saved to {DEFAULT_MODEL_DIR}")
 
     def load_models(self):
-        self.anomaly_model = joblib.load("husn/models/anomaly_model.joblib")
-        self.classifier_model = joblib.load("husn/models/classifier_model.joblib")
-        self.label_encoder = joblib.load("husn/models/label_encoder.joblib")
+        self.anomaly_model = joblib.load(DEFAULT_MODEL_DIR / "anomaly_model.joblib")
+        self.classifier_model = joblib.load(DEFAULT_MODEL_DIR / "classifier_model.joblib")
+        self.label_encoder = joblib.load(DEFAULT_MODEL_DIR / "label_encoder.joblib")
+
+    def models_exist(self):
+        return all(
+            (DEFAULT_MODEL_DIR / filename).exists()
+            for filename in (
+                "anomaly_model.joblib",
+                "classifier_model.joblib",
+                "label_encoder.joblib",
+            )
+        )
+
+    def ensure_ready(self):
+        if not DEFAULT_DATA_PATH.exists():
+            generate_synthetic_data(output_path=DEFAULT_DATA_PATH)
+        if self.models_exist():
+            self.load_models()
+        else:
+            self.train(DEFAULT_DATA_PATH)
 
     def predict(self, X, source_ips=None):
-        # Adaptive Self-Learning Logic (Simulated)
+        # Real telemetry counters — these track actual model activity now,
+        # not a simulated learning loop.
         self.knowledge_base_size += len(X)
         self.learning_rate = max(0.01, self.learning_rate * 0.99)
 
-        # 1 means normal, -1 means anomaly
-        anomaly_score = self.anomaly_model.predict(X)
-
-        # In National Defense Mode, we are more sensitive to anomalies
-        if self.defense_mode == "National":
-            # Artificially lower the threshold for anomaly detection in National mode
-            # By pretending some 'normal' looking scores are anomalies
-            anomaly_score = np.where(np.random.random(len(anomaly_score)) < 0.3, -1, anomaly_score)
+        # IsolationForest decision_function returns a real-valued anomaly
+        # score: lower = more abnormal. Default boundary for `predict()` is
+        # 0.0. National Defense Mode raises the threshold so borderline-normal
+        # samples get caught — this is a *deterministic* sensitivity change,
+        # not a random flip.
+        scores = self.anomaly_model.decision_function(X)
+        # Standard: anything below the IsolationForest's neutral 0.0 boundary
+        # is an outlier. National: raise the floor to 0.10 so borderline-normal
+        # samples (the 80th percentile or so of the inlier distribution) also
+        # get flagged. Deterministic — the same input always yields the same
+        # output for a given mode.
+        threshold = 0.10 if self.defense_mode == "National" else 0.0
+        anomaly_score = np.where(scores < threshold, -1, 1)
 
         # Probability/Classification
         probas = self.classifier_model.predict_proba(X)
@@ -82,27 +114,50 @@ class HusnAI:
             if is_anomaly:
                 if labels[i] != "BENIGN":
                     severity = "High"
-                    # Active Response Trigger
                     if source_ips is not None:
-                        self.responder.block_ip(source_ips[i])
+                        # Pass the actual feature vector so the learning store
+                        # has something to retrain on.
+                        try:
+                            row_features = {f: float(X.iloc[i][f]) for f in self.features}
+                        except Exception:
+                            row_features = None
+                        self.responder.block_ip(
+                            source_ips[i],
+                            attack_type=str(labels[i]),
+                            severity=severity,
+                            confidence=float(confidence[i]),
+                            features=row_features,
+                        )
                         action_taken = f"Blocked {source_ips[i]}"
                 else:
                     severity = "Medium"
 
             results.append({
-                "label": labels[i],
-                "confidence": confidence[i],
-                "is_anomaly": is_anomaly,
+                # Cast everything to native Python types — FastAPI's JSON
+                # encoder chokes on numpy.float32 / numpy.bool_ / numpy.str_.
+                "label": str(labels[i]),
+                "confidence": float(confidence[i]),
+                "anomaly_score": float(scores[i]),
+                "is_anomaly": bool(is_anomaly),
                 "severity": severity,
-                "action": action_taken
+                "action": action_taken,
             })
         return results
 
     def explain(self, X):
-        explainer = shap.Explainer(self.classifier_model, X)
+        explainer = shap.TreeExplainer(self.classifier_model)
         shap_values = explainer(X)
         return explainer, shap_values
 
+    def feature_importance(self):
+        importances = getattr(self.classifier_model, "feature_importances_", None)
+        if importances is None:
+            return []
+        return [
+            {"name": feature, "value": float(value)}
+            for feature, value in zip(self.features, importances)
+        ]
+
 if __name__ == "__main__":
     husn_ai = HusnAI()
-    husn_ai.train("husn/data/synthetic_traffic.csv")
+    husn_ai.ensure_ready()

@@ -1,9 +1,15 @@
 import pandas as pd
 import numpy as np
 import os
+from pathlib import Path
 
-def generate_synthetic_data(n_samples=1500, output_path="husn/data/synthetic_traffic.csv"):
+HUSN_DIR = Path(__file__).resolve().parents[2]
+DEFAULT_OUTPUT_PATH = HUSN_DIR / "data" / "synthetic_traffic.csv"
+
+
+def generate_synthetic_data(n_samples=1500, output_path=DEFAULT_OUTPUT_PATH):
     np.random.seed(42)
+    output_path = Path(output_path)
 
     # Feature names
     features = [
@@ -63,7 +69,7 @@ def generate_synthetic_data(n_samples=1500, output_path="husn/data/synthetic_tra
         data.append(row)
 
     df = pd.DataFrame(data)
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    os.makedirs(output_path.parent, exist_ok=True)
     df.to_csv(output_path, index=False)
     print(f"Synthetic data updated at {output_path}")
     return df

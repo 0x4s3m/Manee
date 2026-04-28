@@ -1,0 +1,32 @@
+[Unit]
+Description=Husn (حصن) — FastAPI backend + AI engine + scheduler
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=husn
+Group=husn
+WorkingDirectory=/opt/husn/backend
+Environment=PYTHONPATH=/opt/husn/backend
+Environment=HUSN_CONFIG=/etc/husn/config.yml
+# SMTP password (and any other secrets) via drop-in:
+#   sudo systemctl edit husn-backend
+#   [Service]
+#   Environment=HUSN_SMTP_PASSWORD=...
+ExecStart=/opt/husn/backend/venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/log/husn /etc/husn /opt/husn/backend/husn/data /opt/husn/backend/husn/models
+# Need network admin caps for iptables blocking + raw sockets for Scapy.
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+
+[Install]
+WantedBy=multi-user.target

@@ -96,6 +96,25 @@ honeypot:
   enabled: true
   ports: [23, 21, 1433, 3306, 5432, 6379, 9200, 27017]
 
+# LLM provider — used by the SOC chatbot, auto-reports, and incident summaries.
+# DeepSeek's API is OpenAI-compatible; the openai SDK works with it via base_url.
+llm:
+  provider: deepseek
+  model: deepseek-chat                  # or deepseek-reasoner for harder reasoning
+  api_key_env: HUSN_DEEPSEEK_KEY        # set this in systemd drop-in, never inline
+  base_url: https://api.deepseek.com
+  max_tokens: 1024
+  temperature: 0.4
+
+chat:
+  max_history: 12                       # turns kept in conversation memory
+
+reports:
+  enabled: true
+  schedule: weekly                      # 'daily' or 'weekly' (managed via dashboard)
+  hour: 9                               # local hour to send (0-23)
+  weekday: 0                            # 0=Mon..6=Sun (only used for weekly)
+
 # Authentication.
 # A users.yml file is auto-created next to this config on first startup with a
 # default admin (admin / admin@). CHANGE THIS PASSWORD IMMEDIATELY in

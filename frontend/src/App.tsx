@@ -6,7 +6,8 @@ import {
   Mail, Trash2, HardDrive, Wifi, CheckCircle2, XCircle, GitBranch, Clock,
   Users as UsersIcon, LogOut, UserPlus, ArrowDownToLine, ArrowUpFromLine,
   Cpu, Radio, Sparkles, KeyRound, GitFork, TerminalSquare, Volume2, VolumeX,
-  Crosshair,
+  Crosshair, MessageSquare, FileText, X as XClose, Play as PlayIcon,
+  Search as SearchIcon,
 } from 'lucide-react';
 import ForceGraph2D from 'react-force-graph-2d';
 import {
@@ -146,6 +147,19 @@ function App() {
   const [newCcAllow, setNewCcAllow] = useState('');
   const [newCcDeny, setNewCcDeny] = useState('');
 
+  // Notify settings + chat + reports + investigate
+  const [notifyState, setNotifyState] = useState<any>(null);
+  const [chatStatus, setChatStatus] = useState<any>(null);
+  const [chatHistory, setChatHistory] = useState<any[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatBusy, setChatBusy] = useState(false);
+  const [reportSched, setReportSched] = useState<any>(null);
+  const [reportList, setReportList] = useState<any[]>([]);
+  const [reportBusy, setReportBusy] = useState(false);
+  const [investigateIp, setInvestigateIp] = useState<string | null>(null);
+  const [investigateData, setInvestigateData] = useState<any>(null);
+  const [investigateBusy, setInvestigateBusy] = useState(false);
+
   const T = translations[lang];
   const logScrollRef = useRef<HTMLDivElement>(null);
   const prevLogCount = useRef(0);
@@ -185,7 +199,8 @@ function App() {
     const tick = () => {
       fetchHardware(); fetchPorts(); fetchProcs(); fetchBlocked();
       fetchRecipients(); fetchUpdateStatus(); fetchConnections();
-      fetchDefLists();
+      fetchDefLists(); fetchNotifyState(); fetchChatStatus();
+      fetchReportSched(); fetchReportList();
       if (isAdmin) { fetchUsers(); fetchAudit(); }
     };
     tick();
@@ -240,6 +255,54 @@ function App() {
   const fetchSniffer = async () => { try { setSnifferStatus((await api.get('/sniffer/status')).data); } catch {} };
   const fetchHoneypot = async () => { try { setHoneypotStatus((await api.get('/honeypot/status')).data); } catch {} };
   const fetchDefLists = async () => { try { setDefLists((await api.get('/defense/lists')).data); } catch {} };
+  const fetchNotifyState = async () => { try { setNotifyState((await api.get('/notify/settings')).data); } catch {} };
+  const fetchChatStatus = async () => { try { setChatStatus((await api.get('/chat/status')).data); } catch {} };
+  const fetchReportSched = async () => { try { setReportSched((await api.get('/reports/schedule')).data); } catch {} };
+  const fetchReportList = async () => { try { setReportList((await api.get('/reports/list')).data); } catch {} };
+
+  const setMinSeverity = async (s: string) => {
+    try { setNotifyState((await api.post('/notify/settings/severity', { min_severity: s })).data); } catch {}
+  };
+  const pauseEmails = async (seconds: number) => {
+    try { setNotifyState((await api.post('/notify/settings/pause', { seconds })).data); } catch {}
+  };
+
+  const sendChat = async () => {
+    if (!chatInput.trim()) return;
+    const userMsg = chatInput.trim();
+    setChatHistory((h) => [...h, { role: 'user', content: userMsg }]);
+    setChatInput(''); setChatBusy(true);
+    try {
+      const r = await api.post('/chat/send', { message: userMsg, session_id: 'main' });
+      const replyText = r.data?.ok ? r.data.reply : (r.data?.error || 'unknown error');
+      setChatHistory((h) => [...h, { role: 'assistant', content: replyText, ok: r.data?.ok }]);
+    } catch (e: any) {
+      setChatHistory((h) => [...h, { role: 'assistant', content: e?.message || 'request failed', ok: false }]);
+    }
+    setChatBusy(false);
+  };
+  const resetChat = async () => {
+    try { await api.post('/chat/reset', { message: '', session_id: 'main' }); } catch {}
+    setChatHistory([]);
+  };
+
+  const setReportSchedule = async (frequency: string, hour: number, weekday: number) => {
+    try { setReportSched((await api.post('/reports/schedule', { frequency, hour, weekday })).data); } catch {}
+  };
+  const runReportNow = async () => {
+    setReportBusy(true);
+    try { await api.post('/reports/run-now'); await fetchReportList(); addLog('REPORTS: manual report generated'); }
+    catch { addLog('[ERR] report generation failed'); }
+    setReportBusy(false);
+  };
+
+  const investigate = async (ip: string) => {
+    setInvestigateIp(ip); setInvestigateData(null); setInvestigateBusy(true);
+    try { setInvestigateData((await api.get(`/investigate/${encodeURIComponent(ip)}`)).data); }
+    catch (e: any) { setInvestigateData({ error: e?.message || 'failed' }); }
+    setInvestigateBusy(false);
+  };
+  const closeInvestigate = () => { setInvestigateIp(null); setInvestigateData(null); };
 
   const addToList = async (kind: string, value: string) => {
     if (!value.trim()) return;
@@ -376,6 +439,24 @@ function App() {
 
   return (
     <div className={`fixed inset-0 bg-husn-bg text-husn-text flex p-4 gap-4 ${lang === 'ar' ? 'rtl' : 'ltr'}`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+      {/* ============ Investigation modal (overlays everything) ============ */}
+      {investigateIp && (
+        <InvestigateModal
+          ip={investigateIp}
+          data={investigateData}
+          busy={investigateBusy}
+          T={T}
+          isAdmin={isAdmin}
+          onClose={closeInvestigate}
+          onWhitelist={() => { addToList('ip-allow', investigateIp); closeInvestigate(); }}
+          onBlacklist={() => { addToList('ip-deny', investigateIp); closeInvestigate(); }}
+          onAskSoc={() => {
+            setActiveTab('chat');
+            setChatInput(`Please analyse IP ${investigateIp} and recommend an action.`);
+            closeInvestigate();
+          }}
+        />
+      )}
       {/* Build marker — confirm you have the latest code. Remove before contest. */}
       <div className="fixed bottom-2 right-3 text-[10px] text-husn-text-3 font-mono pointer-events-none z-50 opacity-60">
         husn-ui · scroll-fix-v3
@@ -406,6 +487,9 @@ function App() {
             badge={blocked.length > 0 ? blocked.length : undefined}/>
           <NavLink icon={<RefreshCw size={16}/>} label={T.updates} active={activeTab === 'updates'} onClick={() => setActiveTab('updates')}
             dot={updateStatus?.last_check?.available}/>
+          <NavLink icon={<MessageSquare size={16}/>} label={T.chat} active={activeTab === 'chat'} onClick={() => setActiveTab('chat')}
+            dot={chatStatus?.configured && chatHistory.length === 0 ? false : undefined}/>
+          <NavLink icon={<FileText size={16}/>} label={T.reports} active={activeTab === 'reports'} onClick={() => setActiveTab('reports')}/>
           {isAdmin && <NavLink icon={<TerminalSquare size={16}/>} label={T.terminal} active={activeTab === 'terminal'} onClick={() => setActiveTab('terminal')}/>}
           {isAdmin && <NavLink icon={<UsersIcon size={16}/>} label={T.users} active={activeTab === 'users'} onClick={() => setActiveTab('users')}/>}
         </nav>
@@ -867,7 +951,15 @@ function App() {
                           <SeverityPill sev={b.severity} T={T}/>,
                           <ReputationPill rep={b.reputation}/>,
                           <span className="text-husn-text-3 text-[11px]">{new Date(b.blocked_at * 1000).toLocaleTimeString()}</span>,
-                          isAdmin ? <button onClick={() => unblockIp(b.ip)} className="text-[11px] text-husn-text-2 hover:text-white">{T.unblock}</button> : '—',
+                          <div className="flex gap-3">
+                            <button onClick={() => investigate(b.ip)}
+                              className="text-[11px] text-husn-success hover:underline uppercase tracking-widest font-medium flex items-center gap-1">
+                              <SearchIcon size={11}/> {T.investigate}
+                            </button>
+                            {isAdmin && (
+                              <button onClick={() => unblockIp(b.ip)} className="text-[11px] text-husn-text-2 hover:text-white uppercase tracking-widest">{T.unblock}</button>
+                            )}
+                          </div>,
                         ])
                       }/>
                     )}
@@ -897,6 +989,44 @@ function App() {
                           <button onClick={addRecipientFn} className="husn-btn-primary text-sm">{T.addRecipient}</button>
                         </div>
                       )}
+                    </Card>
+                  </div>
+
+                  {/* Notify settings: pause + severity threshold */}
+                  <div className="mt-4">
+                    <Card title={T.notifySettings} icon={<Mail size={14}/>}
+                      action={
+                        <span className={`husn-pill ${notifyState?.is_paused ? 'bg-husn-warn/15 text-husn-warn' : 'bg-husn-success/15 text-husn-success'}`}>
+                          {notifyState?.is_paused ? `${T.paused} · ${notifyState.paused_for_seconds}s` : T.notPaused}
+                        </span>
+                      }>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-[11px] text-husn-text-3 uppercase tracking-widest">{T.minSeverity}</label>
+                          <select value={notifyState?.min_severity || 'low'}
+                            onChange={(e) => isAdmin && setMinSeverity(e.target.value)}
+                            disabled={!isAdmin}
+                            className="husn-input w-full mt-2 text-sm capitalize">
+                            {(notifyState?.severity_options || ['low','medium','high','critical']).map((s: string) =>
+                              <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[11px] text-husn-text-3 uppercase tracking-widest">{T.pauseEmails}</label>
+                          <div className="grid grid-cols-4 gap-1 mt-2">
+                            <button onClick={() => isAdmin && pauseEmails(300)} disabled={!isAdmin} className="husn-btn-ghost text-[11px] !py-2">{T.pauseFor5min}</button>
+                            <button onClick={() => isAdmin && pauseEmails(3600)} disabled={!isAdmin} className="husn-btn-ghost text-[11px] !py-2">{T.pauseFor1hour}</button>
+                            <button onClick={() => isAdmin && pauseEmails(86400)} disabled={!isAdmin} className="husn-btn-ghost text-[11px] !py-2">{T.pauseFor24hours}</button>
+                            <button onClick={() => isAdmin && pauseEmails(-1)} disabled={!isAdmin} className="husn-btn-ghost text-[11px] !py-2 border-husn-danger/40 text-husn-danger">{T.pauseForever}</button>
+                          </div>
+                          {notifyState?.is_paused && isAdmin && (
+                            <button onClick={() => pauseEmails(0)}
+                              className="mt-2 w-full text-[11px] py-2 bg-husn-success/10 border border-husn-success/30 text-husn-success rounded-lg uppercase tracking-widest font-medium">
+                              ▶ {T.resumeEmails}
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </Card>
                   </div>
 
@@ -1097,6 +1227,122 @@ function App() {
                 </Tab>
               )}
 
+              {activeTab === 'chat' && (
+                <Tab k="chat">
+                  <div className="flex justify-between items-center mb-1">
+                    <h3 className="text-[15px] font-light uppercase tracking-[0.18em] text-white">{T.chat}</h3>
+                    <div className="flex items-center gap-3">
+                      <span className={`husn-pill ${chatStatus?.configured ? 'bg-husn-success/15 text-husn-success' : 'bg-husn-warn/15 text-husn-warn'}`}>
+                        {chatStatus?.configured ? (chatStatus.model || 'configured') : 'NO API KEY'}
+                      </span>
+                      <button onClick={resetChat} className="husn-btn-ghost text-[11px]">{T.reset}</button>
+                    </div>
+                  </div>
+                  {!chatStatus?.configured && (
+                    <p className="text-[12px] text-husn-warn mb-3">{T.chatNotConfigured}</p>
+                  )}
+                  <Card title={T.chat} icon={<MessageSquare size={14}/>}>
+                    <div className="bg-black/40 border border-husn-border rounded-xl p-4 min-h-[420px] max-h-[55vh] overflow-y-auto"
+                      style={{ scrollBehavior: 'auto', overflowAnchor: 'none' }}>
+                      {chatHistory.length === 0 && (
+                        <p className="text-[12px] text-husn-text-3 italic">husn analyst ready — ask anything about your live security state.</p>
+                      )}
+                      {chatHistory.map((m, i) => (
+                        <div key={i} className={`mb-3 ${m.role === 'user' ? 'text-white' : 'text-husn-text'}`}>
+                          <div className={`text-[10px] uppercase tracking-[0.18em] mb-1 ${m.role === 'user' ? 'text-husn-text-3' : 'text-husn-success'}`}>
+                            {m.role === 'user' ? (authUser?.username || 'you') : 'analyst'}
+                          </div>
+                          <div className={`text-[13px] whitespace-pre-wrap leading-relaxed ${m.ok === false ? 'text-husn-danger' : ''}`}>{m.content}</div>
+                        </div>
+                      ))}
+                      {chatBusy && <p className="text-[12px] text-husn-text-3 italic">{T.thinking}</p>}
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
+                        placeholder={T.askAnything} disabled={chatBusy || !chatStatus?.configured}
+                        className="husn-input flex-1 text-sm"/>
+                      <button onClick={sendChat} disabled={chatBusy || !chatInput.trim() || !chatStatus?.configured}
+                        className="husn-btn-primary text-sm flex items-center gap-2">
+                        {chatBusy ? <Activity size={14} className="animate-spin"/> : <PlayIcon size={14}/>}
+                        {T.send}
+                      </button>
+                    </div>
+                  </Card>
+                </Tab>
+              )}
+
+              {activeTab === 'reports' && (
+                <Tab k="reports">
+                  <div className="flex justify-between items-center mb-1">
+                    <h3 className="text-[15px] font-light uppercase tracking-[0.18em] text-white">{T.reports}</h3>
+                    {isAdmin && (
+                      <button onClick={runReportNow} disabled={reportBusy}
+                        className="husn-btn-primary text-sm flex items-center gap-2">
+                        {reportBusy ? <Activity size={14} className="animate-spin"/> : <FileText size={14}/>}
+                        {T.runReportNow}
+                      </button>
+                    )}
+                  </div>
+
+                  <Card title={T.reportSchedule} icon={<Clock size={14}/>}>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[10px] text-husn-text-3 uppercase tracking-widest">{T.frequency}</label>
+                        <select value={reportSched?.frequency || 'weekly'}
+                          onChange={(e) => isAdmin && setReportSchedule(e.target.value, reportSched?.hour ?? 9, reportSched?.weekday ?? 0)}
+                          disabled={!isAdmin}
+                          className="husn-input w-full mt-1 text-sm">
+                          <option value="off">{T.off}</option>
+                          <option value="daily">{T.daily}</option>
+                          <option value="weekly">{T.weekly}</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-husn-text-3 uppercase tracking-widest">{T.hour}</label>
+                        <select value={reportSched?.hour ?? 9}
+                          onChange={(e) => isAdmin && setReportSchedule(reportSched?.frequency || 'weekly', parseInt(e.target.value), reportSched?.weekday ?? 0)}
+                          disabled={!isAdmin}
+                          className="husn-input w-full mt-1 text-sm">
+                          {Array.from({ length: 24 }, (_, h) => (
+                            <option key={h} value={h}>{h.toString().padStart(2, '0')}:00</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-husn-text-3 uppercase tracking-widest">{T.weekday}</label>
+                        <select value={reportSched?.weekday ?? 0}
+                          onChange={(e) => isAdmin && setReportSchedule(reportSched?.frequency || 'weekly', reportSched?.hour ?? 9, parseInt(e.target.value))}
+                          disabled={!isAdmin || reportSched?.frequency !== 'weekly'}
+                          className="husn-input w-full mt-1 text-sm">
+                          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, i) =>
+                            <option key={i} value={i}>{d}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <div className="mt-4">
+                    <Card title={T.pastReports} icon={<FileText size={14}/>}
+                      action={<span className="text-[11px] text-husn-text-3">{reportList.length}</span>}>
+                      {reportList.length === 0 ? (
+                        <p className="text-[12px] text-husn-text-3 italic py-2">— no reports yet —</p>
+                      ) : (
+                        <Tbl headers={[T.created || 'Created', 'Name', 'Size', '']} rows={
+                          reportList.map((r: any) => [
+                            <span className="text-husn-text-3 text-[11px]">{new Date(r.mtime * 1000).toLocaleString()}</span>,
+                            <span className="font-mono text-white">{r.name}</span>,
+                            <span className="text-husn-text-3">{Math.round(r.size_bytes / 1024)} KB</span>,
+                            <a href={`${API_BASE}${r.url}`} target="_blank" rel="noreferrer"
+                              className="text-husn-success hover:underline text-[11px] uppercase tracking-widest font-bold">{T.download}</a>,
+                          ])
+                        }/>
+                      )}
+                    </Card>
+                  </div>
+                </Tab>
+              )}
+
               {activeTab === 'terminal' && isAdmin && (
                 <Tab k="terminal">
                   <Card title={T.terminal} icon={<TerminalSquare size={14}/>}>
@@ -1173,20 +1419,20 @@ function App() {
           {/* Right: live log panel */}
           <aside className="w-[340px] shrink-0 flex flex-col gap-3 min-h-0">
             <div className="husn-card flex-1 flex flex-col overflow-hidden">
-              <div className="px-4 py-3 border-b border-husn-border flex justify-between items-center">
+              <div className="px-3 py-2 border-b border-husn-border flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-husn-success animate-pulse"/>
-                  <span className="text-[12px] text-white font-medium">{T.kernelLogs || 'Kernel logs'}</span>
+                  <span className="text-[10px] text-white font-medium uppercase tracking-[0.18em]">{T.kernelLogs || 'Kernel logs'}</span>
                 </div>
-                <span className="text-[10px] text-husn-text-3">{logs.length}</span>
+                <span className="text-[9px] text-husn-text-3">{logs.length}</span>
               </div>
               <div ref={logScrollRef} onScroll={onLogScroll}
-                className="flex-1 px-4 py-3 overflow-y-auto text-[11px] font-mono space-y-1"
+                className="flex-1 px-3 py-2 overflow-y-auto text-[10px] font-mono space-y-0.5 leading-relaxed"
                 style={{ scrollBehavior: 'auto' }}>
-                {logs.length === 0 && <p className="text-husn-text-3 italic">SYSTEM_READY...</p>}
+                {logs.length === 0 && <p className="text-husn-text-3 italic text-[10px]">SYSTEM_READY...</p>}
                 {logs.map((log, i) => (
-                  <div key={i} className="flex gap-2">
-                    <span className="text-husn-text-3 shrink-0">{i.toString(16).padStart(3, '0')}</span>
+                  <div key={i} className="flex gap-1.5">
+                    <span className="text-husn-text-4 shrink-0">{i.toString(16).padStart(3, '0')}</span>
                     <span className={
                       log.includes('ERR') || log.includes('!') ? 'text-husn-danger' :
                       log.includes('BLOCK') || log.includes('ACTIVE') || log.includes('UNBLOCK') ? 'text-white' :
@@ -1199,12 +1445,12 @@ function App() {
                 ))}
               </div>
             </div>
-            <div className="husn-card p-4">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[11px] text-husn-text-3">{T.activeShield || 'Active shield'}</span>
-                <Lock size={12} className="text-husn-text-3"/>
+            <div className="husn-card p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-husn-text-3 uppercase tracking-[0.15em]">{T.activeShield || 'Active shield'}</span>
+                <Lock size={11} className="text-husn-text-3"/>
               </div>
-              <div className="text-[14px] font-light uppercase tracking-[0.18em] text-white">
+              <div className="text-[12px] font-light uppercase tracking-[0.18em] text-white">
                 {systemStatus?.real_iptables ? (lang === 'en' ? 'Real iptables' : 'iptables حقيقي') : (lang === 'en' ? 'Simulated' : 'محاكاة')}
               </div>
               <div className="mt-2 h-0.5 bg-husn-border rounded overflow-hidden">
@@ -1228,6 +1474,7 @@ const tabTitle = (t: string, T: any) => ({
   topology: T.topology, terminal: T.terminal, honeypot: T.honeypot,
   recon: T.detection, exploits: T.simulation, xai: T.explainableAI,
   defense: T.defense, updates: T.updates, users: T.users,
+  chat: T.chat, reports: T.reports,
 }[t] || 'Dashboard');
 
 const Tab = ({ children }: any) => (
@@ -1238,7 +1485,7 @@ const Tab = ({ children }: any) => (
 
 const NavLink = ({ icon, label, active, onClick, badge, dot }: any) => (
   <button onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[10px] font-medium uppercase tracking-[0.18em] transition-all relative
+    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[9.5px] font-medium uppercase tracking-[0.15em] transition-all relative
       ${active
         ? 'bg-white/10 text-white border border-white/20 shadow-[inset_0_0_30px_rgba(255,255,255,0.04)]'
         : 'text-husn-text-3 border border-transparent hover:text-white hover:bg-white/[0.03]'}`}>
@@ -1565,6 +1812,99 @@ const TopologyGraph = ({ hostLabel, remotes, blocked }: any) => {
     </div>
   );
 };
+
+// ---------- Investigation modal (one-click)
+
+const InvestigateModal = ({ ip, data, busy, T, isAdmin, onClose, onWhitelist, onBlacklist, onAskSoc }: any) => (
+  <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6"
+    onClick={onClose}>
+    <div className="husn-card w-full max-w-3xl max-h-[88vh] overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.25em] text-husn-text-3">{T.investigation}</div>
+          <h2 className="text-[22px] font-light text-white tracking-tight font-mono mt-1">{ip}</h2>
+        </div>
+        <button onClick={onClose} className="text-husn-text-3 hover:text-white"><XClose size={20}/></button>
+      </div>
+
+      {busy && (
+        <div className="text-center py-12 text-husn-text-3">
+          <Activity size={20} className="animate-spin inline mr-2"/> Investigating…
+        </div>
+      )}
+
+      {data && !busy && (
+        <>
+          {data.error && <p className="text-husn-danger text-sm mb-4">{data.error}</p>}
+
+          {data.geo && (
+            <div className="grid grid-cols-2 gap-x-12 gap-y-2 mb-4">
+              <KV k="Country" v={`${data.geo.flag || ''} ${data.geo.country || '?'}`}/>
+              <KV k="City" v={data.geo.city || '—'}/>
+              <KV k="ASN" v={data.geo.asn || '—'}/>
+              <KV k="Source" v={data.geo.source || '—'}/>
+              <KV k="Reputation" v={`${data.reputation?.classification || '?'} (${data.reputation?.source || ''})`}/>
+              <KV k="Score" v={data.reputation?.score ?? 0}/>
+              <KV k="Block events" v={data.block_event_count ?? 0}/>
+              <KV k="Honeypot hits" v={data.honeypot_hits?.length ?? 0}/>
+            </div>
+          )}
+
+          {data.list_status && (
+            <div className="mb-4">
+              <div className="text-[10px] text-husn-text-3 uppercase tracking-widest mb-2">{T.listStatus}</div>
+              <div className="flex gap-2 flex-wrap text-[11px]">
+                {data.list_status.in_ip_whitelist && <span className="husn-pill bg-husn-success/15 text-husn-success">IP whitelisted</span>}
+                {data.list_status.in_ip_blacklist && <span className="husn-pill bg-husn-danger/15 text-husn-danger">IP blacklisted</span>}
+                {data.list_status.in_country_whitelist && <span className="husn-pill bg-husn-success/15 text-husn-success">Country whitelisted</span>}
+                {data.list_status.in_country_blacklist && <span className="husn-pill bg-husn-danger/15 text-husn-danger">Country blacklisted</span>}
+                {!Object.values(data.list_status).some(Boolean) && <span className="text-husn-text-3 italic">no list membership</span>}
+              </div>
+            </div>
+          )}
+
+          {data.analysis && (
+            <div className="mb-4 rounded-xl border border-husn-border bg-black/40 p-4">
+              <div className="text-[10px] uppercase tracking-[0.25em] text-husn-success mb-2">{T.summary}</div>
+              <pre className="whitespace-pre-wrap text-[13px] leading-relaxed text-husn-text">{data.analysis}</pre>
+            </div>
+          )}
+
+          {data.block_events?.length > 0 && (
+            <div className="mb-4">
+              <div className="text-[10px] text-husn-text-3 uppercase tracking-widest mb-2">{T.eventTimeline}</div>
+              <div className="space-y-1 max-h-48 overflow-y-auto text-[11px]">
+                {data.block_events.map((e: any, i: number) => (
+                  <div key={i} className="flex justify-between gap-3 py-1 border-b border-husn-border">
+                    <span className="text-husn-text-3 font-mono">{new Date(e.ts * 1000).toLocaleString()}</span>
+                    <span className="text-white">{e.attack_type}</span>
+                    <span className="text-husn-text-2">{e.severity}</span>
+                    <span className="text-husn-text-3">{((e.confidence || 0) * 100).toFixed(0)}%</span>
+                    <span className={`text-[10px] ${e.feedback === 'confirmed' ? 'text-husn-success' : e.feedback === 'false_positive' ? 'text-husn-danger' : 'text-husn-text-3'}`}>{e.feedback || 'unconfirmed'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {isAdmin && (
+            <div className="grid grid-cols-3 gap-2 mt-4">
+              <button onClick={onWhitelist} className="text-[11px] py-2 bg-husn-success/10 border border-husn-success/30 text-husn-success rounded-lg uppercase tracking-widest font-medium hover:bg-husn-success/20 transition">
+                {T.addToWhitelist}
+              </button>
+              <button onClick={onBlacklist} className="text-[11px] py-2 bg-husn-danger/10 border border-husn-danger/30 text-husn-danger rounded-lg uppercase tracking-widest font-medium hover:bg-husn-danger/20 transition">
+                {T.addToBlacklist}
+              </button>
+              <button onClick={onAskSoc} className="text-[11px] py-2 bg-white/5 border border-husn-border text-white rounded-lg uppercase tracking-widest font-medium hover:bg-white/10 transition flex items-center justify-center gap-1">
+                <MessageSquare size={11}/> {T.askSocAnalyst}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  </div>
+);
 
 // ---------- Login screen
 const Login = ({ lang, setLang, T, error, onSubmit }: any) => {

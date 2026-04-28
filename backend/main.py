@@ -32,11 +32,12 @@ from husn.src.ai.model import DEFAULT_DATA_PATH, HusnAI
 from husn.src.auth import tokens, users, ratelimit as auth_ratelimit
 from husn.src.auth.deps import require_admin, require_user
 from husn.src.core.simulator import AttackSimulator
+from husn.src.chat import chatbot
 from husn.src.core import lists as defense_lists
 from husn.src.honeypot.server import honeypot
 from husn.src.intel import geoip, reputation
 from husn.src.learning import store as learning_store, trainer as learning_trainer
-from husn.src.notify import mailer, report
+from husn.src.notify import mailer, report, settings as notify_settings, auto_reports
 from husn.src.sniffer.sniffer import sniffer
 from husn.src.system import hardware, network, processes, scanner
 from husn.src.system import traffic
@@ -70,7 +71,9 @@ async def lifespan(app: FastAPI):
     sniffer.start(ai_provider=lambda: ai)
     honeypot.start(responder_provider=lambda: ai.responder)
     updater.start_scheduler()
+    auto_reports.start_scheduler()
     yield
+    auto_reports.stop_scheduler()
     updater.stop_scheduler()
     honeypot.stop()
     sniffer.stop()
@@ -434,6 +437,91 @@ def intel_lookup(ip: str, _: dict = Depends(require_user)):
     return {"ip": ip, "geo": geoip.lookup(ip), "reputation": reputation.lookup(ip)}
 
 
+@app.get("/investigate/{ip}")
+def investigate(ip: str, _: dict = Depends(require_user)):
+    """One-click investigation: aggregate everything Husn knows about an IP
+    + ask the LLM for a brief situational analysis with recommended action.
+    Used by the Defense tab's 'Investigate' button."""
+    from husn.src.notify.explanation import explain as nl_explain
+    from husn.src import llm as _llm
+
+    geo = geoip.lookup(ip)
+    rep = reputation.lookup(ip)
+
+    # Pull all historical block events for this IP from the learning store
+    events: list[dict[str, Any]] = []
+    try:
+        events = [e for e in learning_store.list_events(limit=500) if e.get("source_ip") == ip]
+    except Exception:
+        pass
+
+    # Currently blocked? Get its row + decorate with NL explanation
+    blocked_row = None
+    for r in ai.responder.list_blocked():
+        if r.get("ip") == ip:
+            blocked_row = dict(r)
+            blocked_row["explanation"] = nl_explain(
+                r.get("attack_type", ""), float(r.get("confidence", 0) or 0),
+                ai.feature_importance(), ip,
+            )
+            break
+
+    # Honeypot probes from this IP (if any)
+    honeypot_hits: list[dict[str, Any]] = []
+    try:
+        for ev in honeypot.status().get("events", []) or []:
+            if ev.get("src_ip") == ip:
+                honeypot_hits.append(ev)
+    except Exception:
+        pass
+
+    # Whitelist / blacklist membership
+    listed = {
+        "in_ip_whitelist": defense_lists.is_ip_allowed(ip),
+        "in_ip_blacklist": defense_lists.is_ip_denied(ip),
+        "in_country_whitelist": defense_lists.is_country_allowed(geo.get("country_code")),
+        "in_country_blacklist": defense_lists.is_country_denied(geo.get("country_code")),
+    }
+
+    # Ask the LLM for a SOC analyst summary + recommendation
+    analysis = None
+    if _llm.is_configured():
+        compact = {
+            "ip": ip,
+            "geo": {k: geo.get(k) for k in ("country", "country_code", "city", "asn")},
+            "reputation": rep,
+            "currently_blocked": bool(blocked_row),
+            "block_event_count": len(events),
+            "attack_classes_seen": list({e.get("attack_type") for e in events}),
+            "honeypot_hits": len(honeypot_hits),
+            "list_status": listed,
+        }
+        sys = (
+            "You are Husn's SOC analyst. Given the JSON about a single IP, write 4-6 "
+            "concise bullet points: (1) what this IP is and where it's from, "
+            "(2) what it's done against us, (3) reputation read, "
+            "(4) RECOMMENDED ACTION — one of: 'Whitelist', 'Permanent blacklist', "
+            "'Keep current block', 'No action needed'. "
+            "Bilingual: English first, Arabic second. Markdown."
+        )
+        msg = f"Investigate this IP:\n\n```json\n{compact}\n```"
+        r = _llm.complete(system=sys, messages=[{"role": "user", "content": msg}],
+                          temperature_override=0.2, max_tokens_override=600)
+        analysis = r.get("reply") if r.get("ok") else f"(LLM unavailable — {r.get('error','?')})"
+
+    return {
+        "ip": ip,
+        "geo": geo,
+        "reputation": rep,
+        "currently_blocked": blocked_row,
+        "block_event_count": len(events),
+        "block_events": events[:20],
+        "honeypot_hits": honeypot_hits[:20],
+        "list_status": listed,
+        "analysis": analysis,
+    }
+
+
 # ---------------------------------------------------------------- defense lists
 
 class ListEntryRequest(BaseModel):
@@ -516,6 +604,107 @@ def remove_recipient(email: str, _: dict = Depends(require_admin)):
 @app.post("/test-alert")
 def test_alert(_: dict = Depends(require_admin)):
     return report.send_test_email()
+
+
+# ---------------------------------------------------------------- notify settings
+
+class NotifySeverityRequest(BaseModel):
+    min_severity: str   # low | medium | high | critical
+
+
+class NotifyPauseRequest(BaseModel):
+    seconds: int        # 0 = resume, -1 = forever, N>0 = pause for N s
+
+
+@app.get("/notify/settings")
+def notify_settings_get(_: dict = Depends(require_user)):
+    return notify_settings.get()
+
+
+@app.post("/notify/settings/severity")
+def notify_settings_severity(req: NotifySeverityRequest, actor: dict = Depends(require_admin)):
+    try:
+        v = notify_settings.set_min_severity(req.min_severity)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    _log(f"NOTIFY: {actor['username']} set min_severity={v}")
+    return notify_settings.get()
+
+
+@app.post("/notify/settings/pause")
+def notify_settings_pause(req: NotifyPauseRequest, actor: dict = Depends(require_admin)):
+    until = notify_settings.pause(req.seconds)
+    state = "resumed" if req.seconds == 0 else "paused forever" if req.seconds < 0 else f"paused for {req.seconds}s"
+    _log(f"NOTIFY: {actor['username']} {state}")
+    return notify_settings.get()
+
+
+# ---------------------------------------------------------------- SOC chatbot
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: str = "default"
+
+
+@app.get("/chat/status")
+def chat_status(_: dict = Depends(require_user)):
+    return {"configured": chatbot.is_configured(), "model": (cfg.get("llm.model") or "deepseek-chat")}
+
+
+@app.post("/chat/send")
+def chat_send(req: ChatRequest, actor: dict = Depends(require_user)):
+    sid = f"{actor['username']}::{req.session_id}"
+    return chatbot.chat(sid, req.message)
+
+
+@app.post("/chat/reset")
+def chat_reset(req: ChatRequest, actor: dict = Depends(require_user)):
+    sid = f"{actor['username']}::{req.session_id}"
+    chatbot.reset_session(sid)
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- automated reports
+
+class ReportScheduleRequest(BaseModel):
+    frequency: str   # daily | weekly | off
+    hour: int = 9
+    weekday: int = 0
+
+
+@app.get("/reports/schedule")
+def reports_schedule_get(_: dict = Depends(require_user)):
+    return auto_reports.get_schedule()
+
+
+@app.post("/reports/schedule")
+def reports_schedule_set(req: ReportScheduleRequest, actor: dict = Depends(require_admin)):
+    try:
+        s = auto_reports.set_schedule(req.frequency, req.hour, req.weekday)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    _log(f"REPORTS: {actor['username']} set schedule {s}")
+    return s
+
+
+@app.get("/reports/list")
+def reports_list(_: dict = Depends(require_user)):
+    return auto_reports.list_reports()
+
+
+@app.post("/reports/run-now")
+def reports_run_now(actor: dict = Depends(require_admin)):
+    _log(f"REPORTS: {actor['username']} triggered manual report")
+    return auto_reports.run_now(triggered_by=actor["username"])
+
+
+@app.get("/reports/{name}")
+def reports_download(name: str, _: dict = Depends(require_user)):
+    from fastapi.responses import HTMLResponse
+    body = auto_reports.read_report(name)
+    if body is None:
+        raise HTTPException(status_code=404, detail="report not found")
+    return HTMLResponse(content=body)
 
 
 # ---------------------------------------------------------------- updater

@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from husn.src import config
-from husn.src.notify import mailer
+from husn.src.notify import mailer, settings as notify_settings
 from husn.src.notify.explanation import explain as nl_explain
 
 log = logging.getLogger("husn.report")
@@ -215,6 +215,14 @@ def emit(
         "throttled": False,
         "email": None,
     }
+
+    # Operator-set runtime gates (pause + severity threshold)
+    allowed, reason = notify_settings.should_send(incident.severity)
+    if not allowed:
+        result["throttled"] = True
+        result["skipped_reason"] = reason
+        log.info("[report] skipped email — %s", reason)
+        return result
 
     if not _should_send(incident.source_ip):
         result["throttled"] = True

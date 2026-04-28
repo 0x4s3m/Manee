@@ -1,8 +1,8 @@
-@import "tailwindcss";
-
 /* Arabic typography — Noto Sans Arabic from Google Fonts (loaded only if online,
-   falls back to system Arabic font). Used only when document direction is RTL. */
+   falls back to system Arabic font). Used by RTL mode and by the chat
+   markdown panel (mixed-script replies). Must come before tailwind. */
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
 
 @theme {
   /* Merged palette: pure-monochrome from al0dan/frontend-husn + the original
@@ -60,7 +60,7 @@ body {
   background: var(--color-husn-bg);
   color: var(--color-husn-text);
   font-family: var(--font-sans);
-  letter-spacing: 0.02em;            /* base "tracking-wide" everywhere */
+  letter-spacing: 0.005em;           /* slightly tighter base tracking */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -87,6 +87,14 @@ input, button, select, textarea { font: inherit; }
 }
 [dir="rtl"] .font-mono, [dir="rtl"] code, [dir="rtl"] pre {
   font-family: var(--font-mono) !important;   /* keep code monospace even in AR */
+}
+/* In RTL mode the chat / markdown panel keeps the bilingual stack so
+   English snippets in an Arabic reply still render in Inter, not the
+   Arabic font's fallback Latin glyphs (which look broken). */
+[dir="rtl"] .husn-markdown,
+[dir="rtl"] .husn-markdown * {
+  font-family: 'Noto Sans Arabic', 'IBM Plex Sans Arabic', 'Inter', 'Segoe UI', Tahoma, sans-serif !important;
+  letter-spacing: 0 !important;
 }
 [dir="rtl"] {
   /* Arabic glyphs read better with slightly more line-height */
@@ -173,6 +181,107 @@ input, button, select, textarea { font: inherit; }
   transition: transform .5s ease;
 }
 .husn-logo-glow:hover { transform: scale(1.05); }
+
+/* Markdown rendering — for chat replies, AI investigation summaries, etc.
+   Font stack lists Latin first, then Noto Sans Arabic so Arabic glyphs
+   in mixed-script replies render correctly even when the surrounding
+   document direction is LTR. unicode-bidi: plaintext lets each line
+   auto-detect its own direction (Arabic paragraphs in an English chat
+   read right-to-left without us flipping the whole panel). */
+.husn-markdown {
+  color: #e6f1ff;
+  font-family: 'Inter', 'Noto Sans Arabic', 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+  unicode-bidi: plaintext;
+}
+.husn-markdown p,
+.husn-markdown li,
+.husn-markdown h1,
+.husn-markdown h2,
+.husn-markdown h3,
+.husn-markdown h4,
+.husn-markdown blockquote {
+  unicode-bidi: plaintext;
+}
+.husn-markdown h1,
+.husn-markdown h2,
+.husn-markdown h3,
+.husn-markdown h4 {
+  color: #ffffff;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+  letter-spacing: 0.01em;
+}
+.husn-markdown h1 { font-size: 1.05rem; }
+.husn-markdown h2 { font-size: 0.95rem; border-bottom: 1px solid #2a3142; padding-bottom: 0.25rem; }
+.husn-markdown h3 { font-size: 0.875rem; color: #10b981; }
+.husn-markdown h4 { font-size: 0.825rem; color: #d4d4d8; }
+.husn-markdown p { margin: 0.4rem 0; }
+.husn-markdown strong { color: #ffffff; font-weight: 600; }
+.husn-markdown em { color: #d4d4d8; font-style: italic; }
+.husn-markdown ul,
+.husn-markdown ol { margin: 0.4rem 0; padding-inline-start: 1.5rem; }
+.husn-markdown li { margin: 0.2rem 0; }
+.husn-markdown ul > li { list-style: disc; }
+.husn-markdown ol > li { list-style: decimal; }
+.husn-markdown code {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid #1f2a37;
+  padding: 0.05rem 0.35rem;
+  border-radius: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: #e6f1ff;
+}
+.husn-markdown pre {
+  background: #050505;
+  border: 1px solid #1f2a37;
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  overflow-x: auto;
+  margin: 0.6rem 0;
+}
+.husn-markdown pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  white-space: pre;
+}
+.husn-markdown blockquote {
+  border-inline-start: 3px solid #10b981;
+  padding-inline-start: 0.75rem;
+  margin: 0.6rem 0;
+  color: #a1a1aa;
+}
+.husn-markdown a {
+  color: #10b981;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.husn-markdown a:hover { color: #34d399; }
+.husn-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.6rem 0;
+  font-size: 0.85rem;
+}
+.husn-markdown th,
+.husn-markdown td {
+  border: 1px solid #1f2a37;
+  padding: 0.4rem 0.6rem;
+  text-align: start;
+}
+.husn-markdown th {
+  background: rgba(255,255,255,0.04);
+  font-weight: 600;
+  color: #ffffff;
+}
+.husn-markdown hr {
+  border: 0;
+  border-top: 1px solid #1f2a37;
+  margin: 0.8rem 0;
+}
 
 /* Conic-gradient gauge */
 .husn-gauge {

@@ -236,6 +236,27 @@ export const translations: any = {
     addToWhitelist: "Whitelist IP",
     addToBlacklist: "Blacklist IP",
     askSocAnalyst: "Ask SOC analyst",
+
+    // Kill Chain Visualizer
+    killChain: "Kill Chain",
+    killChainStages: {
+      recon:      "Reconnaissance",
+      weaponize:  "Weaponization",
+      deliver:    "Delivery",
+      exploit:    "Exploitation",
+      install:    "Installation",
+      c2:         "Command & Control",
+      objectives: "Actions on Objectives",
+    },
+    killChainDescriptions: {
+      recon:      "Adversary scans the perimeter and enumerates services. Husn flags port-scans and probing patterns here.",
+      weaponize:  "Off-host stage. The attacker pairs an exploit with a payload — invisible to network sensors.",
+      deliver:    "Payload delivery: brute-force credentials, malicious uploads, phishing links.",
+      exploit:    "Exploit fires against an exposed service. Husn flags web attack and RCE attempts here.",
+      install:    "Foothold installed: backdoor, web shell, or persistent service. Husn detects the post-exploit traffic.",
+      c2:         "Beaconing back to the operator. Persistent connection patterns from infiltrated hosts land here.",
+      objectives: "Impact stage: DDoS, data exfiltration, destructive payloads. Last call to break the chain.",
+    },
   },
   ar: {
     title: "حصن",
@@ -459,5 +480,26 @@ export const translations: any = {
     addToWhitelist: "أضف للسماح",
     addToBlacklist: "أضف للمنع",
     askSocAnalyst: "اسأل محلل SOC",
+
+    // Kill Chain Visualizer
+    killChain: "سلسلة الهجوم",
+    killChainStages: {
+      recon:      "الاستطلاع",
+      weaponize:  "التسليح",
+      deliver:    "التوصيل",
+      exploit:    "الاستغلال",
+      install:    "التثبيت",
+      c2:         "القيادة والتحكم",
+      objectives: "تنفيذ الأهداف",
+    },
+    killChainDescriptions: {
+      recon:      "يقوم المهاجم بمسح المحيط وإحصاء الخدمات. يرصد حصن هنا فحص المنافذ وأنماط الاستكشاف.",
+      weaponize:  "مرحلة خارج المضيف. يقوم المهاجم بدمج الثغرة مع الحمولة — غير مرئية لمستشعرات الشبكة.",
+      deliver:    "توصيل الحمولة: تخمين كلمات المرور، تحميل ملفات خبيثة، روابط تصيد.",
+      exploit:    "تنفيذ الثغرة ضد خدمة مكشوفة. يرصد حصن هنا الهجمات الويب ومحاولات التنفيذ عن بعد.",
+      install:    "تثبيت موطئ قدم: باب خلفي أو خدمة مستمرة. يكتشف حصن حركة ما بعد الاستغلال.",
+      c2:         "إرسال إشارات للمشغل. تظهر هنا أنماط الاتصالات المستمرة من الأجهزة المخترقة.",
+      objectives: "مرحلة الأثر: الحرمان من الخدمة، تسريب البيانات، حمولات تدميرية. آخر فرصة لكسر السلسلة.",
+    },
   },
 };

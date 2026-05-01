@@ -6,7 +6,7 @@ export const translations: any = {
     tagline: "Intelligent Cyber Defense System",
 
     // Sidebar / nav
-    monitoring: "Real-time Monitoring",
+    monitoring: "Dashboard",
     detection: "Threat Detection",
     simulation: "Attack Simulation",
     explainableAI: "Explainable AI (SHAP)",
@@ -126,7 +126,7 @@ export const translations: any = {
     deleteUser: "Delete",
     confirmDelete: "Delete user?",
     created: "Created",
-    userInvalid: "Username and password (min 4 chars) required",
+    userInvalid: "Username and password (min 8 chars) required",
 
     // Restyled UI
     connections: "Connections",
@@ -237,6 +237,51 @@ export const translations: any = {
     addToBlacklist: "Blacklist IP",
     askSocAnalyst: "Ask SOC analyst",
 
+    // Sidebar section headers — kept short so they never wrap inside
+    // the narrow sidebar column even with uppercase tracking applied.
+    navGroupOverview:  "Home",
+    navGroupTelemetry: "Network",
+    navGroupDetect:    "Defense",
+    navGroupAnalysis:  "Analysis",
+    navGroupAdmin:     "Admin",
+
+    // Login security
+    capsLockOn:        "Caps Lock is on",
+    showPassword:      "Show password",
+    hidePassword:      "Hide password",
+    attemptsRemaining: "attempts remaining",
+    lockedTemporarily: "Too many failed attempts. Locked for",
+    seconds:           "seconds",
+    secureConnection:  "Secure connection",
+    insecureConnection:"Insecure connection — use HTTPS",
+    poweredBy:         "Powered by",
+
+    // Users section
+    confirmPassword:    "Confirm password",
+    passwordStrength:   "Password strength",
+    pwStrengthWeak:     "Weak",
+    pwStrengthFair:     "Fair",
+    pwStrengthGood:     "Good",
+    pwStrengthStrong:   "Strong",
+    passwordRulesTitle: "Password requirements",
+    pwRuleLen:          "At least 8 characters",
+    pwRuleMix:          "Mix of letters, numbers, symbols",
+    pwRuleNoCommon:     "Not a common password",
+    passwordsDoNotMatch:"Passwords do not match",
+    deleteUserWarn:     "This cannot be undone. The user will lose access immediately.",
+    cancel:             "Cancel",
+
+    // AI Inspector — what the AI actually saw
+    aiInspector:        "AI Inspector",
+    aiInspectorDesc:    "Live view of every packet the AI scored — features, payloads, verdicts.",
+    aiInspectorEmpty:   "No analysed packets yet. Send some traffic and they'll appear here in seconds.",
+    payload:            "Payload",
+    noPayload:          "(no application payload)",
+    aiVerdict:          "AI verdict",
+    featuresExtracted:  "17 Features the AI consumed",
+    flowSummary:        "Flow",
+    inspect:            "Inspect",
+
     // Kill Chain Visualizer
     killChain: "Kill Chain",
     killChainStages: {
@@ -263,7 +308,7 @@ export const translations: any = {
     arabicTitle: "حصن",
     tagline: "نظام ذكي للدفاع السيبراني",
 
-    monitoring: "المراقبة الحية",
+    monitoring: "لوحة التحكم",
     detection: "اكتشاف التهديدات",
     simulation: "محاكاة الهجمات",
     explainableAI: "الذكاء الاصطناعي القابل للتفسير",
@@ -480,6 +525,50 @@ export const translations: any = {
     addToWhitelist: "أضف للسماح",
     addToBlacklist: "أضف للمنع",
     askSocAnalyst: "اسأل محلل SOC",
+
+    // Sidebar section headers — kept short so they never wrap.
+    navGroupOverview:  "الرئيسية",
+    navGroupTelemetry: "الشبكة",
+    navGroupDetect:    "الدفاع",
+    navGroupAnalysis:  "التحليل",
+    navGroupAdmin:     "الإدارة",
+
+    // Login security
+    capsLockOn:        "زر Caps Lock مفعّل",
+    showPassword:      "إظهار كلمة المرور",
+    hidePassword:      "إخفاء كلمة المرور",
+    attemptsRemaining: "محاولات متبقية",
+    lockedTemporarily: "تم تجاوز الحد المسموح. تم القفل لمدة",
+    seconds:           "ثانية",
+    secureConnection:  "اتصال آمن",
+    insecureConnection:"اتصال غير آمن — استخدم HTTPS",
+    poweredBy:         "مشغّل بواسطة",
+
+    // Users section
+    confirmPassword:    "تأكيد كلمة المرور",
+    passwordStrength:   "قوة كلمة المرور",
+    pwStrengthWeak:     "ضعيفة",
+    pwStrengthFair:     "متوسطة",
+    pwStrengthGood:     "جيدة",
+    pwStrengthStrong:   "قوية",
+    passwordRulesTitle: "متطلبات كلمة المرور",
+    pwRuleLen:          "٨ أحرف على الأقل",
+    pwRuleMix:          "حروف وأرقام ورموز",
+    pwRuleNoCommon:     "ليست شائعة",
+    passwordsDoNotMatch:"كلمات المرور غير متطابقة",
+    deleteUserWarn:     "لا يمكن التراجع. سيفقد المستخدم صلاحيات الدخول فوراً.",
+    cancel:             "إلغاء",
+
+    // AI Inspector
+    aiInspector:        "مفتش الذكاء",
+    aiInspectorDesc:    "عرض مباشر لكل حزمة فحصها الذكاء — الميزات، الحمولات، والقرارات.",
+    aiInspectorEmpty:   "لا توجد حزم مفحوصة بعد. أرسل حركة شبكة وستظهر هنا خلال ثوانٍ.",
+    payload:            "الحمولة",
+    noPayload:          "(لا توجد حمولة تطبيق)",
+    aiVerdict:          "قرار الذكاء",
+    featuresExtracted:  "الميزات السبع عشرة المستخدمة",
+    flowSummary:        "التدفق",
+    inspect:            "افحص",
 
     // Kill Chain Visualizer
     killChain: "سلسلة الهجوم",

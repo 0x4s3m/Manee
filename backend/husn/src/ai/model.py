@@ -79,7 +79,7 @@ class HusnAI:
         else:
             self.train(DEFAULT_DATA_PATH)
 
-    def predict(self, X, source_ips=None):
+    def predict(self, X, source_ips=None, payloads=None):
         # Real telemetry counters — these track actual model activity now,
         # not a simulated learning loop.
         self.knowledge_base_size += len(X)
@@ -105,15 +105,44 @@ class HusnAI:
         labels = self.label_encoder.inverse_transform(class_idx)
         confidence = np.max(probas, axis=1)
 
+        # ---- Layer 2: payload signature scanner ----
+        # The flow-feature model is blind to *content*. Run a regex pass
+        # over the captured payload preview and let any match upgrade the
+        # AI's verdict. Signatures cover SQLi / XSS / RCE / log4shell /
+        # path-traversal / scanner UAs / weak creds / LOLBin abuse / etc.
+        sig_matches: list = [None] * len(X)
+        if payloads:
+            try:
+                from husn.src.ai import signatures
+                for i, payload in enumerate(payloads):
+                    hit = signatures.scan(payload or "")
+                    if hit is None:
+                        continue
+                    sig_matches[i] = hit
+                    # Override the verdict — the regex is a content
+                    # ground-truth that beats a probabilistic guess.
+                    anomaly_score[i] = -1
+                    labels[i] = hit["attack_type"]
+                    if float(confidence[i]) < hit["confidence"]:
+                        confidence[i] = hit["confidence"]
+            except Exception:
+                # Signatures must never crash the AI loop — they're
+                # additive, not load-bearing.
+                pass
+
         results = []
         for i in range(len(X)):
             is_anomaly = anomaly_score[i] == -1
             severity = "Low"
             action_taken = "None"
 
+            sig = sig_matches[i]
+
             if is_anomaly:
                 if labels[i] != "BENIGN":
-                    severity = "High"
+                    # Severity comes from the signature when matched, otherwise
+                    # default to High for non-benign anomalies.
+                    severity = sig["severity"] if sig else "High"
                     if source_ips is not None:
                         # Pass the actual feature vector so the learning store
                         # has something to retrain on.
@@ -141,6 +170,7 @@ class HusnAI:
                 "is_anomaly": bool(is_anomaly),
                 "severity": severity,
                 "action": action_taken,
+                "signature": sig["pattern_name"] if sig else None,
             })
         return results
 

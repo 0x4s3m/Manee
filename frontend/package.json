@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node ./node_modules/vite/bin/vite.js",
-    "build": "node ./node_modules/typescript/bin/tsc -b && node ./node_modules/vite/bin/vite.js build && cp public/favicon.svg dist/favicon.svg && cp public/icons.svg dist/icons.svg",
+    "build": "node ./node_modules/typescript/bin/tsc -b && node ./node_modules/vite/bin/vite.js build && cp public/favicon.svg dist/favicon.svg && cp public/icons.svg dist/icons.svg && cp public/husn-logo.png dist/husn-logo.png",
     "lint": "node ./node_modules/eslint/bin/eslint.js .",
     "preview": "node ./node_modules/vite/bin/vite.js preview"
   },

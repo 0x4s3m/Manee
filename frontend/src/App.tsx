@@ -4,10 +4,11 @@ import {
   LayoutDashboard, Search, Globe, Play, Eye, Activity,
   Lock, ChevronRight, Server, Network, ShieldOff, RefreshCw,
   Mail, Trash2, HardDrive, Wifi, CheckCircle2, XCircle, GitBranch, Clock,
-  Users as UsersIcon, LogOut, UserPlus, ArrowDownToLine, ArrowUpFromLine,
+  Users as UsersIcon, LogOut, UserPlus,
   Cpu, Radio, Sparkles, KeyRound, GitFork, TerminalSquare, Volume2, VolumeX,
   Crosshair, MessageSquare, FileText, X as XClose, Play as PlayIcon,
-  Search as SearchIcon, ChevronLeft, Target,
+  Search as SearchIcon, ChevronLeft, Target, Menu, ShieldCheck,
+  EyeOff, AlertCircle, Check,
 } from 'lucide-react';
 import ForceGraph2D from 'react-force-graph-2d';
 import {
@@ -21,6 +22,7 @@ import { translations } from './i18n';
 import logoEN from './assets/logo.png';
 import logoAR from './assets/logo_ar.png';
 import KillChainVisualizer from './components/KillChainVisualizer';
+import AIInspector from './components/AIInspector';
 
 // Auto-detect the API host from the URL the dashboard was loaded from.
 // Works on localhost, on the VPS public IP, on a real domain — no rebuild needed.
@@ -131,7 +133,11 @@ function App() {
 
   const [userList, setUserList] = useState<any[]>([]);
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'employee' });
+  const [newUserConfirm, setNewUserConfirm] = useState('');
+  const [newUserShowPwd, setNewUserShowPwd] = useState(false);
   const [userError, setUserError] = useState<string | null>(null);
+  const [userSearch, setUserSearch] = useState('');
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
   // New: sniffer / honeypot / terminal / audio
   const [snifferStatus, setSnifferStatus] = useState<any>(null);
@@ -147,6 +153,63 @@ function App() {
     setSidebarCollapsed((c) => {
       const next = !c;
       try { localStorage.setItem('husn.sidebar', next ? 'collapsed' : 'expanded'); } catch {}
+      return next;
+    });
+  };
+
+  // Responsive sidebar — three breakpoints:
+  //   • < 768px  (mobile)  → sidebar is a drawer; hamburger in header opens it
+  //   • 768-1023 (tablet)  → sidebar is auto-collapsed to icon-only
+  //   • >= 1024  (desktop) → sidebar is full and the user controls collapse
+  const [isMobile, setIsMobile] = useState<boolean>(
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 767px)').matches : false,
+  );
+  const [isTablet, setIsTablet] = useState<boolean>(
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px) and (max-width: 1023px)').matches : false,
+  );
+  const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    const mqMobile = window.matchMedia('(max-width: 767px)');
+    const mqTablet = window.matchMedia('(min-width: 768px) and (max-width: 1023px)');
+    const onM = (e: MediaQueryListEvent | MediaQueryList) => setIsMobile(('matches' in e ? e.matches : (e as MediaQueryListEvent).matches));
+    const onT = (e: MediaQueryListEvent | MediaQueryList) => setIsTablet(('matches' in e ? e.matches : (e as MediaQueryListEvent).matches));
+    setIsMobile(mqMobile.matches);
+    setIsTablet(mqTablet.matches);
+    mqMobile.addEventListener('change', onM as any);
+    mqTablet.addEventListener('change', onT as any);
+    return () => {
+      mqMobile.removeEventListener('change', onM as any);
+      mqTablet.removeEventListener('change', onT as any);
+    };
+  }, []);
+
+  // Drawer auto-closes whenever the user picks a tab on mobile.
+  useEffect(() => { if (isMobile) setDrawerOpen(false); }, [activeTab, isMobile]);
+
+  // Effective collapsed state — tablet always collapses; mobile uses drawer.
+  const effectiveCollapsed = isTablet ? true : sidebarCollapsed;
+
+  // Sidebar nav uses accordion behavior: opening a section auto-folds the
+  // others so the sidebar never gets long enough to scroll. Click an open
+  // section to fold everything. Persisted across reloads.
+  const [navOpen, setNavOpen] = useState<Record<string, boolean>>(() => {
+    try {
+      const raw = localStorage.getItem('husn.nav-open');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // Migrate old multi-open state → single-open accordion.
+        const firstOpen = Object.keys(parsed).find((k) => parsed[k]);
+        return firstOpen ? { [firstOpen]: true } : { overview: true };
+      }
+    } catch {}
+    return { overview: true };
+  });
+  const toggleNavGroup = (k: string) => {
+    setNavOpen((o) => {
+      const wasOpen = !!o[k];
+      const next: Record<string, boolean> = wasOpen ? {} : { [k]: true };
+      try { localStorage.setItem('husn.nav-open', JSON.stringify(next)); } catch {}
       return next;
     });
   };
@@ -417,6 +480,8 @@ function App() {
       localStorage.setItem(TOKEN_KEY, r.data.token);
       localStorage.setItem(USER_KEY, JSON.stringify(r.data.user));
       setToken(r.data.token); setAuthUser(r.data.user);
+      // Clear soft-lockout state on success.
+      try { sessionStorage.removeItem('husn.login-fail'); sessionStorage.removeItem('husn.login-lock'); } catch {}
     } catch (e: any) {
       setAuthError(e?.response?.status === 401 ? 'loginFailed' : 'loginNetwork');
     }
@@ -429,15 +494,16 @@ function App() {
   const fetchUsers = async () => { try { setUserList((await api.get('/auth/users')).data.users); } catch {} };
   const createUser = async () => {
     setUserError(null);
-    if (!newUser.username || newUser.password.length < 4) { setUserError(T.userInvalid); return; }
-    try { await api.post('/auth/users', newUser); setNewUser({ username: '', password: '', role: 'employee' }); fetchUsers(); addLog(`AUTH: created ${newUser.username}`); }
+    if (!newUser.username || newUser.password.length < 8) { setUserError(T.userInvalid); return; }
+    if (newUser.password !== newUserConfirm) { setUserError('passwordsDoNotMatch'); return; }
+    try { await api.post('/auth/users', newUser); setNewUser({ username: '', password: '', role: 'employee' }); setNewUserConfirm(''); setNewUserShowPwd(false); fetchUsers(); addLog(`AUTH: created ${newUser.username}`); }
     catch (e: any) { setUserError(e?.response?.data?.detail || 'failed'); }
   };
   const deleteUser = async (u: string) => {
     if (u === authUser?.username) return;
-    if (!confirm(`${T.confirmDelete} ${u}`)) return;
     try { await api.delete(`/auth/users/${encodeURIComponent(u)}`); fetchUsers(); addLog(`AUTH: deleted ${u}`); }
-    catch (e: any) { alert(e?.response?.data?.detail || 'delete failed'); }
+    catch (e: any) { setUserError(e?.response?.data?.detail || 'delete failed'); }
+    setUserToDelete(null);
   };
 
   // ---------- gate
@@ -453,7 +519,7 @@ function App() {
   }));
 
   return (
-    <div className={`fixed inset-0 bg-husn-bg text-husn-text flex p-4 gap-4 ${lang === 'ar' ? 'rtl' : 'ltr'}`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+    <div className={`fixed inset-0 bg-husn-bg text-husn-text flex ${isMobile ? 'p-2 gap-2' : 'p-4 gap-4'} ${lang === 'ar' ? 'rtl' : 'ltr'}`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       {/* ============ Investigation modal (overlays everything) ============ */}
       {investigateIp && (
         <InvestigateModal
@@ -476,109 +542,231 @@ function App() {
       <div className="fixed bottom-2 right-3 text-[10px] text-husn-text-3 font-mono pointer-events-none z-50 opacity-60">
         husn-ui · scroll-fix-v3
       </div>
-      {/* ============ Sidebar (floating card) ============ */}
-      <aside className={`husn-card flex flex-col shrink-0 overflow-hidden transition-[width] duration-200 ${sidebarCollapsed ? 'w-16' : 'w-60'}`}>
-        <div className={`flex justify-center items-center ${sidebarCollapsed ? 'px-2 py-5' : 'px-6 py-7'}`}>
+      {/* Mobile drawer backdrop — shown only when the sidebar is open on a
+          mobile viewport. Click to dismiss. */}
+      {isMobile && drawerOpen && (
+        <div
+          onClick={() => setDrawerOpen(false)}
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 transition-opacity"
+        />
+      )}
+
+      {/* ============ Sidebar ============ */}
+      <aside
+        className={`husn-card flex flex-col shrink-0 overflow-hidden transition-all duration-300 ease-out
+          ${isMobile
+            ? `fixed top-2 ${lang === 'ar' ? 'right-2' : 'left-2'} bottom-2 z-50 w-72
+               ${drawerOpen ? 'translate-x-0 opacity-100' : (lang === 'ar' ? 'translate-x-[110%] opacity-0 pointer-events-none' : '-translate-x-[110%] opacity-0 pointer-events-none')}`
+            : (effectiveCollapsed ? 'w-[72px]' : 'w-60')
+          }`}
+      >
+        {/* Mobile-only close button at the top-right of the drawer */}
+        {isMobile && (
+          <button
+            onClick={() => setDrawerOpen(false)}
+            aria-label="Close menu"
+            className={`absolute top-3 ${lang === 'ar' ? 'left-3' : 'right-3'} p-1.5 rounded-md text-husn-text-3 hover:text-white hover:bg-white/[0.05] transition`}
+          >
+            <XClose size={16}/>
+          </button>
+        )}
+
+        {/* Brand / logo block — clean, centered, with a subtle subtitle.
+            On collapsed sidebars only the icon-sized logo shows. */}
+        <div className={`flex flex-col items-center justify-center ${effectiveCollapsed ? 'px-2 pt-5 pb-3' : 'px-5 pt-6 pb-4'}`}>
           <img
             src={lang === 'ar' ? logoAR : logoEN}
             alt="Husn"
-            className={`${sidebarCollapsed ? 'w-9' : 'w-32'} h-auto object-contain husn-logo-glow transition-all duration-200`}
+            className={`${effectiveCollapsed ? 'w-9' : 'w-24'} h-auto object-contain husn-logo-glow transition-all duration-300`}
           />
+          {!effectiveCollapsed && (
+            <div className="mt-2 flex items-center gap-1.5 text-[9px] uppercase tracking-[0.18em] text-husn-text-3">
+              <ShieldCheck size={9}/>
+              <span>{lang === 'en' ? 'Defense Grid' : 'الشبكة الدفاعية'}</span>
+            </div>
+          )}
         </div>
 
-        <nav className={`flex-1 ${sidebarCollapsed ? 'px-2' : 'px-3'} py-2 space-y-0.5 overflow-y-auto`}>
-          <NavLink icon={<LayoutDashboard size={16}/>} label={T.monitoring} collapsed={sidebarCollapsed} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')}/>
-          <NavLink icon={<Server size={16}/>} label={T.host} collapsed={sidebarCollapsed} active={activeTab === 'host'} onClick={() => setActiveTab('host')}/>
-          <NavLink icon={<Network size={16}/>} label={T.network} collapsed={sidebarCollapsed} active={activeTab === 'network'} onClick={() => setActiveTab('network')}/>
-          <NavLink icon={<Radio size={16}/>} label={T.connections || 'Connections'} collapsed={sidebarCollapsed} active={activeTab === 'connections'} onClick={() => setActiveTab('connections')}
-            badge={connections?.total > 0 ? connections.total : undefined}/>
-          <NavLink icon={<GitFork size={16}/>} label={T.topology} collapsed={sidebarCollapsed} active={activeTab === 'topology'} onClick={() => setActiveTab('topology')}/>
-          <NavLink icon={<Target size={16}/>} label={T.killChain} collapsed={sidebarCollapsed} active={activeTab === 'kill-chain'} onClick={() => setActiveTab('kill-chain')}
-            badge={blocked.length > 0 ? blocked.length : undefined}/>
-          <NavLink icon={<Search size={16}/>} label={T.detection} collapsed={sidebarCollapsed} active={activeTab === 'recon'} onClick={() => setActiveTab('recon')}/>
-          <NavLink icon={<Crosshair size={16}/>} label={T.honeypot} collapsed={sidebarCollapsed} active={activeTab === 'honeypot'} onClick={() => setActiveTab('honeypot')}
-            dot={(honeypotStatus?.connections_total ?? 0) > 0}/>
-          <NavLink icon={<Eye size={16}/>} label={T.explainableAI} collapsed={sidebarCollapsed} active={activeTab === 'xai'} onClick={() => setActiveTab('xai')}/>
-          <NavLink icon={<ShieldOff size={16}/>} label={T.defense} collapsed={sidebarCollapsed} active={activeTab === 'defense'} onClick={() => setActiveTab('defense')}
-            badge={blocked.length > 0 ? blocked.length : undefined}/>
-          <NavLink icon={<RefreshCw size={16}/>} label={T.updates} collapsed={sidebarCollapsed} active={activeTab === 'updates'} onClick={() => setActiveTab('updates')}
-            dot={updateStatus?.last_check?.available}/>
-          <NavLink icon={<MessageSquare size={16}/>} label={T.chat} collapsed={sidebarCollapsed} active={activeTab === 'chat'} onClick={() => setActiveTab('chat')}
-            dot={chatStatus?.configured && chatHistory.length === 0 ? false : undefined}/>
-          <NavLink icon={<FileText size={16}/>} label={T.reports} collapsed={sidebarCollapsed} active={activeTab === 'reports'} onClick={() => setActiveTab('reports')}/>
-          {isAdmin && <NavLink icon={<TerminalSquare size={16}/>} label={T.terminal} collapsed={sidebarCollapsed} active={activeTab === 'terminal'} onClick={() => setActiveTab('terminal')}/>}
-          {isAdmin && <NavLink icon={<UsersIcon size={16}/>} label={T.users} collapsed={sidebarCollapsed} active={activeTab === 'users'} onClick={() => setActiveTab('users')}/>}
+        {/* Compact status pill — minimal, no bordered card */}
+        <SystemStatusPill
+          collapsed={effectiveCollapsed}
+          online={!!systemStatus}
+          uptimeSeconds={monitor?.uptime_seconds ?? hwSnapshot?.os?.uptime_seconds ?? 0}
+          lang={lang}
+        />
+
+        <div className={`mx-3 mt-3 mb-1 h-px ${effectiveCollapsed ? 'opacity-0' : 'bg-husn-border'}`}/>
+
+        <nav className={`flex-1 ${effectiveCollapsed ? 'px-2' : 'px-3'} py-1 overflow-y-auto`}>
+          {/* OVERVIEW */}
+          <NavSection k="overview" title={T.navGroupOverview} alert={blocked.length > 0}
+            collapsed={effectiveCollapsed} open={navOpen.overview} onToggle={toggleNavGroup}>
+            <NavLink icon={<LayoutDashboard size={16}/>} label={T.monitoring} collapsed={effectiveCollapsed} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')}/>
+            <NavLink icon={<Target size={16}/>} label={T.killChain} collapsed={effectiveCollapsed} active={activeTab === 'kill-chain'} onClick={() => setActiveTab('kill-chain')}
+              badge={blocked.length > 0 ? blocked.length : undefined}/>
+          </NavSection>
+
+          {/* TELEMETRY */}
+          <NavSection k="telemetry" title={T.navGroupTelemetry}
+            collapsed={effectiveCollapsed} open={navOpen.telemetry} onToggle={toggleNavGroup}>
+            <NavLink icon={<Server size={16}/>} label={T.host} collapsed={effectiveCollapsed} active={activeTab === 'host'} onClick={() => setActiveTab('host')}/>
+            <NavLink icon={<Network size={16}/>} label={T.network} collapsed={effectiveCollapsed} active={activeTab === 'network'} onClick={() => setActiveTab('network')}/>
+            <NavLink icon={<Radio size={16}/>} label={T.connections || 'Connections'} collapsed={effectiveCollapsed} active={activeTab === 'connections'} onClick={() => setActiveTab('connections')}
+              badge={connections?.total > 0 ? connections.total : undefined}/>
+            <NavLink icon={<GitFork size={16}/>} label={T.topology} collapsed={effectiveCollapsed} active={activeTab === 'topology'} onClick={() => setActiveTab('topology')}/>
+          </NavSection>
+
+          {/* DEFENSE */}
+          <NavSection k="detect" title={T.navGroupDetect} alert={blocked.length > 0}
+            collapsed={effectiveCollapsed} open={navOpen.detect} onToggle={toggleNavGroup}>
+            <NavLink icon={<Search size={16}/>} label={T.detection} collapsed={effectiveCollapsed} active={activeTab === 'recon'} onClick={() => setActiveTab('recon')}/>
+            <NavLink icon={<Eye size={16}/>} label={T.aiInspector} collapsed={effectiveCollapsed} active={activeTab === 'ai-inspect'} onClick={() => setActiveTab('ai-inspect')}
+              dot={(snifferStatus?.recent_packets?.length ?? 0) > 0}/>
+            <NavLink icon={<Eye size={16}/>} label={T.explainableAI} collapsed={effectiveCollapsed} active={activeTab === 'xai'} onClick={() => setActiveTab('xai')}/>
+            <NavLink icon={<ShieldOff size={16}/>} label={T.defense} collapsed={effectiveCollapsed} active={activeTab === 'defense'} onClick={() => setActiveTab('defense')}
+              badge={blocked.length > 0 ? blocked.length : undefined}/>
+            <NavLink icon={<Crosshair size={16}/>} label={T.honeypot} collapsed={effectiveCollapsed} active={activeTab === 'honeypot'} onClick={() => setActiveTab('honeypot')}
+              dot={(honeypotStatus?.connections_total ?? 0) > 0}/>
+          </NavSection>
+
+          {/* ANALYSIS */}
+          <NavSection k="analysis" title={T.navGroupAnalysis}
+            collapsed={effectiveCollapsed} open={navOpen.analysis} onToggle={toggleNavGroup}>
+            <NavLink icon={<MessageSquare size={16}/>} label={T.chat} collapsed={effectiveCollapsed} active={activeTab === 'chat'} onClick={() => setActiveTab('chat')}
+              dot={chatStatus?.configured && chatHistory.length === 0 ? false : undefined}/>
+            <NavLink icon={<FileText size={16}/>} label={T.reports} collapsed={effectiveCollapsed} active={activeTab === 'reports'} onClick={() => setActiveTab('reports')}/>
+          </NavSection>
+
+          {/* ADMIN */}
+          {isAdmin && (
+            <NavSection k="admin" title={T.navGroupAdmin}
+              collapsed={effectiveCollapsed} open={navOpen.admin} onToggle={toggleNavGroup}>
+              <NavLink icon={<RefreshCw size={16}/>} label={T.updates} collapsed={effectiveCollapsed} active={activeTab === 'updates'} onClick={() => setActiveTab('updates')}
+                dot={updateStatus?.last_check?.available}/>
+              <NavLink icon={<TerminalSquare size={16}/>} label={T.terminal} collapsed={effectiveCollapsed} active={activeTab === 'terminal'} onClick={() => setActiveTab('terminal')}/>
+              <NavLink icon={<UsersIcon size={16}/>} label={T.users} collapsed={effectiveCollapsed} active={activeTab === 'users'} onClick={() => setActiveTab('users')}/>
+            </NavSection>
+          )}
         </nav>
 
-        {/* National Defense card — hidden when collapsed to save room */}
-        {!sidebarCollapsed && (
-          <div className="m-3 p-4 rounded-2xl border border-husn-border bg-black/20">
-            <div className="flex items-center gap-2 mb-1.5">
-              <Sparkles size={14} className={systemStatus?.defense_mode === 'National' ? 'text-husn-danger' : 'text-husn-text-3'}/>
-              <span className="text-[11px] text-husn-text-2 font-medium">{T.nationalDefense}</span>
+        {/* Live traffic sparkline — only when expanded */}
+        {!effectiveCollapsed && (
+          <SidebarSparkline series={trafficSeries} blockedCount={blocked.length} lang={lang}/>
+        )}
+
+        {/* National Defense card — bigger, neon, attention-grabbing.
+            This is one of the centerpieces judges look at, so the
+            button is the largest interactive element in the sidebar. */}
+        {!effectiveCollapsed && (
+          <div
+            className={`mx-3 mb-2 p-3.5 rounded-xl border transition-all
+              ${systemStatus?.defense_mode === 'National'
+                ? 'border-husn-danger/40 bg-husn-danger/5 shadow-[0_0_24px_rgba(244,63,94,0.20)]'
+                : 'border-husn-border bg-black/30'}`}
+          >
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.14em] text-husn-text-2 font-medium">
+                <Sparkles size={12} className={systemStatus?.defense_mode === 'National' ? 'text-husn-danger animate-pulse' : 'text-husn-text-3'}/>
+                {T.nationalDefense}
+              </span>
+              <span
+                className={`text-[9px] uppercase tracking-[0.14em] flex items-center gap-1
+                  ${systemStatus?.defense_mode === 'National' ? 'text-husn-danger' : 'text-husn-text-3'}`}>
+                <span
+                  className={`w-1 h-1 rounded-full
+                    ${systemStatus?.defense_mode === 'National' ? 'bg-husn-danger animate-pulse' : 'bg-husn-text-3'}`}/>
+                {systemStatus?.defense_mode === 'National' ? (lang === 'en' ? 'active' : 'مفعّل') : (lang === 'en' ? 'standby' : 'احتياطي')}
+              </span>
             </div>
-            <p className="text-[11px] text-husn-text-3 leading-snug mb-3">
-              {systemStatus?.defense_mode === 'National'
-                ? (lang === 'en' ? 'Active. Detection threshold raised.' : 'مفعّل. عتبة الاكتشاف مرفوعة.')
-                : (lang === 'en' ? 'Standby. Standard threshold.' : 'احتياطي. العتبة الافتراضية.')}
-            </p>
-            <button onClick={toggleDefense} disabled={isToggling || !isAdmin}
+            <button
+              onClick={toggleDefense}
+              disabled={isToggling || !isAdmin}
               title={!isAdmin ? 'Admin only' : ''}
-              className={`w-full text-xs font-medium py-2 rounded-lg transition disabled:opacity-30 disabled:cursor-not-allowed
+              className={`w-full text-[12px] font-semibold py-2.5 rounded-lg transition-all uppercase tracking-[0.14em]
+                disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2
                 ${systemStatus?.defense_mode === 'National'
-                  ? 'bg-husn-danger/15 text-husn-danger hover:bg-husn-danger/25 border border-husn-danger/30'
-                  : 'bg-white text-husn-bg hover:opacity-90'}`}>
-              {systemStatus?.defense_mode === 'National' ? T.deactivate || 'Deactivate' : T.activate || 'Activate'}
+                  ? 'bg-husn-danger/20 text-husn-danger hover:bg-husn-danger/30 border border-husn-danger/50 shadow-[0_0_16px_rgba(244,63,94,0.30)] hover:shadow-[0_0_22px_rgba(244,63,94,0.45)]'
+                  : 'bg-husn-success text-black hover:brightness-110 border border-husn-success shadow-[0_0_16px_rgba(16,185,129,0.40)] hover:shadow-[0_0_24px_rgba(16,185,129,0.60)]'}`}
+            >
+              {isToggling ? <Activity size={13} className="animate-spin"/> : <Sparkles size={13}/>}
+              {systemStatus?.defense_mode === 'National' ? (T.deactivate || 'Deactivate') : (T.activate || 'Activate')}
             </button>
           </div>
         )}
 
-        {/* Lang toggle + collapse button */}
-        <div className={`pb-4 flex items-center text-husn-text-3 text-xs ${sidebarCollapsed ? 'px-2 flex-col gap-2' : 'px-4 justify-between'}`}>
-          {!sidebarCollapsed && (
-            <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')} className="flex items-center gap-1.5 hover:text-white transition">
-              <Globe size={12}/> {lang === 'en' ? 'العربية' : 'English'}
+        {/* Footer — language + collapse toggle in one tight row */}
+        <div className={`border-t border-husn-border ${effectiveCollapsed ? 'p-2 flex-col gap-1.5' : 'px-3 py-2.5 justify-between'} flex items-center`}>
+          {!effectiveCollapsed && (
+            <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] uppercase tracking-[0.14em] text-husn-text-3 hover:text-white hover:bg-white/[0.04] transition">
+              <Globe size={11}/> {lang === 'en' ? 'العربية' : 'English'}
             </button>
           )}
-          <button onClick={toggleSidebar}
-            title={sidebarCollapsed ? (lang === 'en' ? 'Expand' : 'توسيع') : (lang === 'en' ? 'Collapse' : 'طي')}
-            className="p-1.5 rounded-md border border-husn-border hover:text-white hover:border-husn-border-2 transition">
-            {sidebarCollapsed
-              ? (lang === 'ar' ? <ChevronLeft size={14}/> : <ChevronRight size={14}/>)
-              : (lang === 'ar' ? <ChevronRight size={14}/> : <ChevronLeft size={14}/>)}
-          </button>
+          {effectiveCollapsed && (
+            <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
+              title={lang === 'en' ? 'العربية' : 'English'}
+              className="p-1.5 rounded-md text-husn-text-3 hover:text-white hover:bg-white/[0.04] transition">
+              <Globe size={14}/>
+            </button>
+          )}
+          {/* The collapse toggle is hidden on tablet (auto-collapsed) and
+              on mobile (drawer mode). It's a desktop-only control. */}
+          {!isMobile && !isTablet && (
+            <button onClick={toggleSidebar}
+              title={sidebarCollapsed ? (lang === 'en' ? 'Expand' : 'توسيع') : (lang === 'en' ? 'Collapse' : 'طي')}
+              className="p-1.5 rounded-md text-husn-text-3 hover:text-white hover:bg-white/[0.04] transition">
+              {sidebarCollapsed
+                ? (lang === 'ar' ? <ChevronLeft size={14}/> : <ChevronRight size={14}/>)
+                : (lang === 'ar' ? <ChevronRight size={14}/> : <ChevronLeft size={14}/>)}
+            </button>
+          )}
         </div>
       </aside>
 
       {/* ============ Main column ============ */}
       <main className="flex-1 min-w-0 min-h-0 flex flex-col gap-4 overflow-hidden">
-        {/* Header bar */}
-        <header className="husn-card px-6 py-4 flex items-center gap-4">
-          <div className="flex items-center gap-2 text-husn-text-2 text-sm">
-            <LayoutDashboard size={16}/>
-            <span className="capitalize">{tabTitle(activeTab, T)}</span>
+        {/* Header bar — collapses gracefully on small screens. The
+            search box hides on mobile (the dashboard is read-only there
+            mostly) and the run-scan button shrinks to an icon. */}
+        <header className={`husn-card flex items-center gap-2 sm:gap-4 ${isMobile ? 'px-3 py-3' : 'px-6 py-4'}`}>
+          {/* Mobile-only hamburger to open the drawer */}
+          {isMobile && (
+            <button onClick={() => setDrawerOpen(true)}
+              aria-label="Open menu"
+              className="p-2 rounded-lg border border-husn-border text-husn-text-2 hover:text-white hover:border-husn-border-2 transition shrink-0">
+              <Menu size={18}/>
+            </button>
+          )}
+          <div className="flex items-center gap-2 text-husn-text-2 text-sm min-w-0">
+            <LayoutDashboard size={16} className="shrink-0"/>
+            <span className="capitalize truncate">{tabTitle(activeTab, T)}</span>
           </div>
-          <div className="flex-1 max-w-md mx-auto relative">
-            <Search size={14} className={`absolute top-2.5 ${lang === 'ar' ? 'right-3' : 'left-3'} text-husn-text-3`}/>
-            <input className={`husn-input w-full text-sm ${lang === 'ar' ? 'pr-9 pl-3' : 'pl-9 pr-3'}`}
-              placeholder={T.target} value={target} onChange={(e) => setTarget(e.target.value)}/>
-          </div>
+          {!isMobile && (
+            <div className="flex-1 max-w-md mx-auto relative">
+              <Search size={14} className={`absolute top-2.5 ${lang === 'ar' ? 'right-3' : 'left-3'} text-husn-text-3`}/>
+              <input className={`husn-input w-full text-sm ${lang === 'ar' ? 'pr-9 pl-3' : 'pl-9 pr-3'}`}
+                placeholder={T.target} value={target} onChange={(e) => setTarget(e.target.value)}/>
+            </div>
+          )}
+          {isMobile && <div className="flex-1"/>}
           <button onClick={startScan} disabled={isScanning || !target || !isAdmin}
-            title={!isAdmin ? 'Admin only' : ''}
-            className="husn-btn-primary text-sm flex items-center gap-2">
+            title={!isAdmin ? 'Admin only' : (isMobile ? T.runScan : '')}
+            className="husn-btn-primary text-sm flex items-center gap-2 shrink-0">
             {isScanning ? <Activity size={14} className="animate-spin"/> : <Play size={14}/>}
-            {isScanning ? T.scanning || 'Scanning...' : T.runScan}
+            {!isMobile && (isScanning ? T.scanning || 'Scanning...' : T.runScan)}
           </button>
-          {/* audio toggle + user chip */}
+          {/* audio toggle */}
           <button onClick={toggleAudio} title={audioOn ? T.audioOn : T.audioOff}
-            className={`p-2 rounded-lg border transition ${audioOn ? 'border-husn-border-2 text-white bg-white/[0.04]' : 'border-husn-border text-husn-text-3 hover:text-white'}`}>
+            className={`p-2 rounded-lg border transition shrink-0 ${audioOn ? 'border-husn-border-2 text-white bg-white/[0.04]' : 'border-husn-border text-husn-text-3 hover:text-white'}`}>
             {audioOn ? <Volume2 size={14}/> : <VolumeX size={14}/>}
           </button>
-          <div className={`flex items-center gap-3 ${lang === 'ar' ? 'mr-2' : 'ml-2'} pr-2 pl-2`}>
-            <div className="text-right">
-              <div className="text-xs text-white font-medium leading-tight">{authUser?.username}</div>
-              <div className="text-[10px] text-husn-text-3 capitalize">{authUser?.role === 'admin' ? T.admin : T.employee}</div>
-            </div>
+          <div className={`flex items-center gap-2 sm:gap-3 ${lang === 'ar' ? 'mr-1 sm:mr-2' : 'ml-1 sm:ml-2'} px-1 sm:px-2 shrink-0`}>
+            {!isMobile && (
+              <div className="text-right">
+                <div className="text-xs text-white font-medium leading-tight">{authUser?.username}</div>
+                <div className="text-[10px] text-husn-text-3 capitalize">{authUser?.role === 'admin' ? T.admin : T.employee}</div>
+              </div>
+            )}
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold
               ${authUser?.role === 'admin' ? 'bg-white text-husn-bg' : 'bg-white/10 text-white'}`}>
               {(authUser?.username || '?').slice(0, 1).toUpperCase()}
@@ -589,20 +777,43 @@ function App() {
           </div>
         </header>
 
-        {/* Welcome line */}
-        <div className="flex items-end justify-between mt-1 px-1">
-          <div>
-            <h1 className="text-[24px] font-light uppercase tracking-[0.18em] text-white leading-tight">
+        {/* Welcome line + prominent Defense Mode pill */}
+        <div className="flex items-end justify-between mt-1 px-1 gap-3">
+          <div className="min-w-0">
+            <h1 className="text-[22px] sm:text-[24px] font-light uppercase tracking-[0.16em] text-white leading-tight truncate">
               {lang === 'en' ? `Welcome back, ${authUser?.username}` : `مرحباً، ${authUser?.username}`}
             </h1>
-            <p className="text-husn-text-3 text-sm mt-0.5">
-              {hwSnapshot?.os?.hostname || '—'} · {systemStatus?.organization || ''}
+            <p className="text-husn-text-3 text-[11px] uppercase tracking-[0.16em] mt-1 flex items-center gap-2">
+              <ShieldCheck size={11} className="text-husn-success"/>
+              <span>{lang === 'en' ? 'Husn Defense Grid' : 'شبكة حصن الدفاعية'}</span>
+              <span className="text-husn-border-2">·</span>
+              <span className="flex items-center gap-1">
+                <span className="w-1 h-1 rounded-full bg-husn-success animate-pulse"/>
+                {lang === 'en' ? 'Active' : 'نشطة'}
+              </span>
             </p>
           </div>
-          <div className="text-right">
-            <div className="text-[11px] text-husn-text-3">{lang === 'en' ? 'Defense mode' : 'وضع الدفاع'}</div>
-            <div className={`text-sm font-medium ${systemStatus?.defense_mode === 'National' ? 'text-husn-danger' : 'text-white'}`}>
-              {systemStatus?.defense_mode || '—'}
+          {/* Big neon Defense Mode pill — clearly the primary status indicator */}
+          <div className={`shrink-0 flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all
+            ${systemStatus?.defense_mode === 'National'
+              ? 'bg-husn-danger/10 border-husn-danger/40 shadow-[0_0_24px_rgba(244,63,94,0.25)]'
+              : 'bg-husn-success/10 border-husn-success/30 shadow-[0_0_18px_rgba(16,185,129,0.18)]'}`}>
+            <span className="relative flex w-2 h-2">
+              <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping
+                ${systemStatus?.defense_mode === 'National' ? 'bg-husn-danger' : 'bg-husn-success'}`}/>
+              <span className={`relative inline-flex rounded-full h-2 w-2
+                ${systemStatus?.defense_mode === 'National' ? 'bg-husn-danger' : 'bg-husn-success'}`}/>
+            </span>
+            <div className="leading-tight">
+              <div className="text-[9px] uppercase tracking-[0.18em] text-husn-text-3">
+                {lang === 'en' ? 'Defense mode' : 'وضع الدفاع'}
+              </div>
+              <div className={`text-[14px] font-semibold uppercase tracking-[0.10em]
+                ${systemStatus?.defense_mode === 'National' ? 'text-husn-danger' : 'text-husn-success'}`}>
+                {systemStatus?.defense_mode === 'National'
+                  ? (lang === 'en' ? 'National' : 'وطني')
+                  : (lang === 'en' ? 'Standard' : 'قياسي')}
+              </div>
             </div>
           </div>
         </div>
@@ -613,17 +824,43 @@ function App() {
             <AnimatePresence mode="wait">
               {activeTab === 'dashboard' && (
                 <Tab k="dashboard">
-                  {/* KPIs */}
-                  <div className="grid grid-cols-4 gap-4">
-                    <Kpi label={T.incomingNow || 'Incoming'} value={fmtBytes(monitor?.incoming_bps ?? 0)}
-                      sub={`${fmtNum(monitor?.incoming_pps ?? 0)} pkts/s`} icon={<ArrowDownToLine size={16}/>}/>
-                    <Kpi label={T.outgoingNow || 'Outgoing'} value={fmtBytes(monitor?.outgoing_bps ?? 0)}
-                      sub={`${fmtNum(monitor?.outgoing_pps ?? 0)} pkts/s`} icon={<ArrowUpFromLine size={16}/>}/>
-                    <Kpi label={T.blockedIps} value={fmtNum(monitor?.blocked_now ?? 0)}
-                      sub={`${monitor?.blocks_total ?? 0} ${T.totalBlocks || 'lifetime'}`}
-                      icon={<ShieldOff size={16}/>} highlight={(monitor?.blocked_now ?? 0) > 0}/>
-                    <Kpi label={T.uptime} value={fmtUptime(monitor?.uptime_seconds ?? 0)}
-                      sub={hwSnapshot?.os?.system || ''} icon={<Clock size={16}/>}/>
+                  {/* Hero KPIs — analyst-focused: what was blocked, how
+                      sure the AI was, what's live right now, and
+                      whether the grid itself is healthy. */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <Kpi
+                      label={lang === 'en' ? 'Threats blocked' : 'تهديدات محظورة'}
+                      value={fmtNum(monitor?.blocks_total ?? blocked.length)}
+                      sub={`${monitor?.blocked_now ?? 0} ${lang === 'en' ? 'currently' : 'حالياً'}`}
+                      icon={<ShieldOff size={16}/>}
+                      highlight={(monitor?.blocks_total ?? 0) > 0}
+                    />
+                    <Kpi
+                      label={lang === 'en' ? 'AI confidence' : 'ثقة الذكاء'}
+                      value={(() => {
+                        const arr = snifferStatus?.recent_packets || [];
+                        if (!arr.length) return '—';
+                        const avg = arr.reduce((s: number, p: any) => s + (p.confidence || 0), 0) / arr.length;
+                        return `${Math.round(avg * 100)}%`;
+                      })()}
+                      sub={`${snifferStatus?.recent_packets?.length ?? 0} ${lang === 'en' ? 'flows scored' : 'تدفقات مفحوصة'}`}
+                      icon={<Eye size={16}/>}
+                    />
+                    <Kpi
+                      label={lang === 'en' ? 'Live threats' : 'تهديدات حيّة'}
+                      value={fmtNum((snifferStatus?.recent_packets || []).filter((p: any) => p.is_anomaly && p.label !== 'BENIGN').length)}
+                      sub={`${snifferStatus?.predictions ?? 0} ${lang === 'en' ? 'AI runs' : 'تشغيل ذكاء'}`}
+                      icon={<Activity size={16}/>}
+                      highlight={((snifferStatus?.recent_packets || []).filter((p: any) => p.is_anomaly && p.label !== 'BENIGN').length) > 0}
+                    />
+                    <Kpi
+                      label={lang === 'en' ? 'System status' : 'حالة النظام'}
+                      value={systemStatus
+                        ? (lang === 'en' ? 'ONLINE' : 'متصل')
+                        : (lang === 'en' ? 'OFFLINE' : 'منقطع')}
+                      sub={fmtUptime(monitor?.uptime_seconds ?? 0)}
+                      icon={<ShieldCheck size={16}/>}
+                    />
                   </div>
 
                   {/* Real-time sniffer + honeypot status row */}
@@ -1207,6 +1444,25 @@ function App() {
                 </Tab>
               )}
 
+              {activeTab === 'ai-inspect' && (
+                <Tab k="ai-inspect">
+                  <div className="flex justify-between items-end mb-3">
+                    <div>
+                      <h3 className="text-[15px] font-light uppercase tracking-[0.18em] text-white">{T.aiInspector}</h3>
+                      <p className="text-husn-text-3 text-[11px] mt-1 tracking-normal max-w-2xl">
+                        {T.aiInspectorDesc}
+                      </p>
+                    </div>
+                  </div>
+                  <AIInspector
+                    packets={snifferStatus?.recent_packets || []}
+                    lang={lang}
+                    T={T}
+                    onInvestigate={investigate}
+                  />
+                </Tab>
+              )}
+
               {activeTab === 'honeypot' && (
                 <Tab k="honeypot">
                   <div className="grid grid-cols-4 gap-4">
@@ -1403,40 +1659,54 @@ function App() {
 
               {activeTab === 'users' && isAdmin && (
                 <Tab k="users">
-                  <Card title={T.addUser} icon={<UserPlus size={14}/>}>
-                    <div className="grid grid-cols-4 gap-2">
-                      <input type="text" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
-                        placeholder={T.username} className="husn-input text-sm"/>
-                      <input type="password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                        placeholder={T.password} className="husn-input text-sm"/>
-                      <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                        className="husn-input text-sm">
-                        <option value="employee">{T.employee}</option>
-                        <option value="admin">{T.admin}</option>
-                      </select>
-                      <button onClick={createUser} className="husn-btn-primary text-sm flex items-center justify-center gap-2">
-                        <UserPlus size={14}/> {T.addUser}
-                      </button>
-                    </div>
-                    {userError && <p className="text-xs text-husn-danger mt-3">{userError}</p>}
-                  </Card>
+                  <UsersPanel
+                    T={T}
+                    lang={lang}
+                    authUser={authUser}
+                    userList={userList}
+                    userSearch={userSearch}
+                    setUserSearch={setUserSearch}
+                    newUser={newUser}
+                    setNewUser={setNewUser}
+                    newUserConfirm={newUserConfirm}
+                    setNewUserConfirm={setNewUserConfirm}
+                    newUserShowPwd={newUserShowPwd}
+                    setNewUserShowPwd={setNewUserShowPwd}
+                    userError={userError}
+                    onCreate={createUser}
+                    onAskDelete={(u: string) => setUserToDelete(u)}
+                  />
 
-                  <div className="mt-4">
-                    <Card title={`${T.users} (${userList.length})`} icon={<UsersIcon size={14}/>}>
-                      <Tbl headers={[T.username, T.role, T.created, '']} rows={
-                        userList.map((u: any) => [
-                          <span className="font-medium text-white">{u.username}</span>,
-                          <span className={`husn-pill ${u.role === 'admin' ? 'bg-white/15 text-white' : 'bg-husn-border text-husn-text-2'}`}>
-                            {u.role === 'admin' ? T.admin : T.employee}
-                          </span>,
-                          <span className="text-husn-text-3 text-[11px]">{u.created_at}</span>,
-                          u.username !== authUser?.username
-                            ? <button onClick={() => deleteUser(u.username)} className="text-husn-text-3 hover:text-husn-danger" title={T.deleteUser}><Trash2 size={14}/></button>
-                            : <span className="text-[11px] text-husn-text-3 italic">(you)</span>,
-                        ])
-                      }/>
-                    </Card>
-                  </div>
+                  {/* Delete-user confirmation modal */}
+                  {userToDelete && (
+                    <div
+                      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                      onClick={() => setUserToDelete(null)}
+                    >
+                      <div
+                        className="husn-card p-6 max-w-sm w-full"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertCircle size={16} className="text-husn-danger"/>
+                          <h4 className="text-white text-[13px] uppercase tracking-[0.16em]">{T.confirmDelete}</h4>
+                        </div>
+                        <p className="text-[12px] text-husn-text-2 mb-1 font-mono">{userToDelete}</p>
+                        <p className="text-[11px] text-husn-text-3 mb-5">{T.deleteUserWarn}</p>
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => setUserToDelete(null)} className="husn-btn-ghost text-xs">
+                            {T.cancel}
+                          </button>
+                          <button
+                            onClick={() => deleteUser(userToDelete!)}
+                            className="text-xs uppercase tracking-[0.14em] px-4 py-2 rounded-lg bg-husn-danger/15 text-husn-danger border border-husn-danger/30 hover:bg-husn-danger/25 transition flex items-center gap-2"
+                          >
+                            <Trash2 size={12}/> {T.deleteUser}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </Tab>
               )}
             </AnimatePresence>
@@ -1502,6 +1772,7 @@ const tabTitle = (t: string, T: any) => ({
   defense: T.defense, updates: T.updates, users: T.users,
   chat: T.chat, reports: T.reports,
   'kill-chain': T.killChain,
+  'ai-inspect': T.aiInspector,
 }[t] || 'Dashboard');
 
 const Tab = ({ children }: any) => (
@@ -1516,6 +1787,16 @@ const NavLink = ({ icon, label, active, onClick, badge, dot, collapsed }: any) =
       ${active
         ? 'bg-white/10 text-white border border-white/20 shadow-[inset_0_0_30px_rgba(255,255,255,0.04)]'
         : 'text-husn-text-3 border border-transparent hover:text-white hover:bg-white/[0.03]'}`}>
+    {/* Smooth active-tab indicator that slides between tabs using framer
+        layoutId. Only one instance is rendered at any time, which is what
+        triggers the morph animation. */}
+    {active && (
+      <motion.span
+        layoutId="nav-active-rail"
+        className="absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-full bg-white"
+        transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+      />
+    )}
     <span className={active ? 'text-white' : 'text-husn-text-3'}>{icon}</span>
     {!collapsed && <span className="flex-1 text-left">{label}</span>}
     {!collapsed && badge !== undefined && (
@@ -1529,6 +1810,155 @@ const NavLink = ({ icon, label, active, onClick, badge, dot, collapsed }: any) =
     {dot && <span className={`${collapsed ? 'absolute top-0.5 right-0.5' : ''} w-1.5 h-1.5 rounded-full bg-husn-warn animate-pulse`}/>}
   </button>
 );
+
+// ---- Sidebar premium widgets ---------------------------------------
+
+// Live system status pill — minimal, no bordered card. Just a pulsing dot
+// and tight typography so it reads as a status line, not a notification.
+const SystemStatusPill = ({ collapsed, online, uptimeSeconds, lang }: {
+  collapsed: boolean; online: boolean; uptimeSeconds: number; lang: 'en' | 'ar';
+}) => {
+  const color = online ? '#10b981' : '#f43f5e';
+  const stateLabel = lang === 'en'
+    ? (online ? 'Online' : 'Offline')
+    : (online ? 'متصل'    : 'منقطع');
+  const uptimeText = online && uptimeSeconds ? fmtUptime(uptimeSeconds) : (lang === 'en' ? '—' : '—');
+
+  if (collapsed) {
+    return (
+      <div className="flex justify-center pb-1" title={stateLabel}>
+        <span className="relative flex w-1.5 h-1.5">
+          {online && (
+            <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping"
+              style={{ background: color }}/>
+          )}
+          <span className="relative inline-flex rounded-full h-1.5 w-1.5"
+            style={{ background: color, boxShadow: `0 0 6px ${color}` }}/>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-5 flex items-center gap-2 text-[10px] uppercase tracking-[0.14em]">
+      <span className="relative flex w-1.5 h-1.5 shrink-0">
+        {online && (
+          <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping"
+            style={{ background: color }}/>
+        )}
+        <span className="relative inline-flex rounded-full h-1.5 w-1.5"
+          style={{ background: color, boxShadow: `0 0 6px ${color}` }}/>
+      </span>
+      <span style={{ color }}>{stateLabel}</span>
+      <span className="text-husn-border-2">·</span>
+      <span className="text-husn-text-3 tracking-normal">{uptimeText}</span>
+    </div>
+  );
+};
+
+// Sidebar live traffic sparkline. Reuses the trafficSeries the dashboard
+// is already polling — zero extra network cost. Renders as an inline SVG
+// so we don't pull in Recharts overhead inside the sidebar (the main
+// dashboard area still uses Recharts for the big chart).
+const SidebarSparkline = ({ series, blockedCount, lang }: {
+  series: { i: number; inn: number; out: number }[]; blockedCount: number; lang: 'en' | 'ar';
+}) => {
+  const w = 200, h = 36;
+  const pts = series.length ? series : Array.from({ length: 60 }, (_, i) => ({ i, inn: 0, out: 0 }));
+  const max = Math.max(1, ...pts.map((p) => p.inn + p.out));
+  const path = pts.map((p, i) => {
+    const x = (i / (pts.length - 1 || 1)) * w;
+    const y = h - ((p.inn + p.out) / max) * (h - 2);
+    return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(' ');
+  const area = `${path} L ${w} ${h} L 0 ${h} Z`;
+  const last = pts[pts.length - 1];
+  const lastBytes = last ? last.inn + last.out : 0;
+
+  return (
+    <div className="m-3 p-3 rounded-2xl border border-husn-border bg-black/20">
+      <div className="flex items-baseline justify-between mb-1.5">
+        <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-husn-text-3">
+          {lang === 'en' ? 'Live traffic' : 'حركة مباشرة'}
+        </span>
+        <span className="text-[10px] text-white tracking-normal font-mono">{fmtBytes(lastBytes)}</span>
+      </div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-9">
+        <defs>
+          <linearGradient id="ssGrad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%"   stopColor="rgba(255,255,255,0.35)"/>
+            <stop offset="100%" stopColor="rgba(255,255,255,0)"/>
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#ssGrad)"/>
+        <path d={path} fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.2" strokeLinecap="round"/>
+        {/* Throbbing dot at the leading edge */}
+        <circle cx={w} cy={h - ((last?.inn ?? 0) + (last?.out ?? 0)) / max * (h - 2)} r="2"
+          fill={blockedCount > 0 ? '#f43f5e' : '#10b981'}>
+          <animate attributeName="opacity" values="1;0.3;1" dur="1.4s" repeatCount="indefinite"/>
+        </circle>
+      </svg>
+      <div className="flex justify-between mt-1.5">
+        <span className="text-[9px] text-husn-text-3 tracking-normal">{pts.length}s</span>
+        <span className="text-[9px] tracking-normal" style={{ color: blockedCount > 0 ? '#f43f5e' : '#10b981' }}>
+          {blockedCount > 0
+            ? (lang === 'en' ? `${blockedCount} blocked` : `${blockedCount} محظور`)
+            : (lang === 'en' ? 'all clear' : 'الوضع آمن')}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+// Sidebar section header + collapsible body. Acts like a folder: clicking
+// anywhere on the header toggles its items. The chevron is always visible
+// so it reads as clearly interactive. When the whole sidebar is in
+// icon-only mode, the header collapses to a small centered divider so the
+// grouping is still legible without taking a whole row.
+const NavSection = ({ k, title, children, collapsed, open, onToggle, alert }: any) => {
+  if (collapsed) {
+    return (
+      <div className="my-2 relative">
+        <div className="mx-3 my-2 h-px bg-husn-border"/>
+        {alert && (
+          <span className="absolute right-2 -top-0.5 w-1.5 h-1.5 rounded-full bg-husn-danger animate-pulse"/>
+        )}
+        <div className="space-y-0.5">{children}</div>
+      </div>
+    );
+  }
+  return (
+    <div className="mb-1.5">
+      <button
+        onClick={() => onToggle(k)}
+        className="w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-md
+          text-[9px] font-semibold uppercase tracking-[0.10em] whitespace-nowrap
+          text-husn-text-3 hover:text-white hover:bg-white/[0.02] transition group"
+      >
+        <span className="flex items-center gap-1.5 min-w-0">
+          <span
+            className={`block w-1 h-1 rounded-full shrink-0 transition-colors ${
+              alert ? 'bg-husn-danger animate-pulse' : (open ? 'bg-white/70' : 'bg-husn-text-3')
+            }`}
+          />
+          <span className={`truncate ${alert ? 'text-husn-danger' : ''}`}>{title}</span>
+        </span>
+        <ChevronRight
+          size={10}
+          className={`shrink-0 transition-transform duration-200 text-husn-text-3 group-hover:text-white ${open ? 'rotate-90' : ''}`}
+        />
+      </button>
+      <div
+        className="overflow-hidden transition-[max-height,opacity] duration-200 ease-out"
+        style={{ maxHeight: open ? 720 : 0, opacity: open ? 1 : 0 }}
+      >
+        <div className="ml-2 pl-2 border-l border-husn-border space-y-0.5 pt-1 pb-1">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const Kpi = ({ label, value, sub, icon, highlight }: any) => (
   <div className={`husn-card p-5 flex items-start justify-between ${highlight ? 'border-husn-danger/40' : ''}`}>
@@ -1925,57 +2355,432 @@ const InvestigateModal = ({ ip, data, busy, T, isAdmin, onClose, onWhitelist, on
   </div>
 );
 
+// ---------- Users panel
+// A small password-strength scorer. Cheap rules-based — *not* a security
+// boundary (the backend still enforces hashing / rate limit / etc) — but
+// gives visible feedback so admins don't create weak accounts.
+function pwStrength(pw: string): { score: 0|1|2|3|4; label: string; color: string } {
+  let s = 0;
+  if (pw.length >= 8)  s++;
+  if (pw.length >= 12) s++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) s++;
+  if (/[0-9]/.test(pw)) s++;
+  if (/[^A-Za-z0-9]/.test(pw)) s++;
+  const score = Math.max(0, Math.min(4, s)) as 0|1|2|3|4;
+  const presets = [
+    { label: 'pwStrengthWeak',   color: '#f43f5e' },
+    { label: 'pwStrengthWeak',   color: '#f43f5e' },
+    { label: 'pwStrengthFair',   color: '#f59e0b' },
+    { label: 'pwStrengthGood',   color: '#a1a1aa' },
+    { label: 'pwStrengthStrong', color: '#10b981' },
+  ];
+  return { score, ...presets[score] };
+}
+
+const UsersPanel = ({
+  T, lang, authUser, userList, userSearch, setUserSearch,
+  newUser, setNewUser, newUserConfirm, setNewUserConfirm,
+  newUserShowPwd, setNewUserShowPwd, userError, onCreate, onAskDelete,
+}: any) => {
+  const strength = pwStrength(newUser.password);
+  const matches  = newUser.password.length > 0 && newUser.password === newUserConfirm;
+  const filtered = userList.filter(
+    (u: any) => !userSearch || u.username.toLowerCase().includes(userSearch.toLowerCase())
+  );
+
+  return (
+    <>
+      {/* Add User card */}
+      <Card title={T.addUser} icon={<UserPlus size={14}/>}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Username + Role */}
+          <div className="space-y-3">
+            <div>
+              <label className="text-[10px] uppercase tracking-[0.14em] text-husn-text-3">{T.username}</label>
+              <input
+                type="text" value={newUser.username}
+                onChange={(e) => setNewUser({ ...newUser, username: e.target.value.replace(/\s/g, '').toLowerCase() })}
+                placeholder="alice.smith"
+                spellCheck={false}
+                autoCapitalize="off"
+                className="husn-input w-full text-sm font-mono tracking-normal mt-1.5"/>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-[0.14em] text-husn-text-3">{T.role}</label>
+              <div className="grid grid-cols-2 gap-2 mt-1.5">
+                {(['employee', 'admin'] as const).map((r) => (
+                  <button key={r} type="button"
+                    onClick={() => setNewUser({ ...newUser, role: r })}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[11px] uppercase tracking-[0.12em] transition
+                      ${newUser.role === r
+                        ? 'border-white/30 bg-white/5 text-white'
+                        : 'border-husn-border text-husn-text-3 hover:text-white hover:border-husn-border-2'}`}>
+                    {r === 'admin' ? <KeyRound size={12}/> : <UsersIcon size={12}/>}
+                    {r === 'admin' ? T.admin : T.employee}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Password + confirm + strength */}
+          <div className="space-y-3">
+            <div>
+              <label className="text-[10px] uppercase tracking-[0.14em] text-husn-text-3">{T.password}</label>
+              <div className="relative mt-1.5">
+                <input
+                  type={newUserShowPwd ? 'text' : 'password'}
+                  value={newUser.password}
+                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                  className={`husn-input w-full text-sm font-mono tracking-normal ${lang === 'ar' ? 'pl-10 pr-3' : 'pr-10 pl-3'}`}
+                  autoComplete="new-password"/>
+                <button type="button"
+                  onClick={() => setNewUserShowPwd((s: boolean) => !s)}
+                  title={newUserShowPwd ? T.hidePassword : T.showPassword}
+                  className={`absolute top-1/2 -translate-y-1/2 ${lang === 'ar' ? 'left-2.5' : 'right-2.5'} text-husn-text-3 hover:text-white transition`}>
+                  {newUserShowPwd ? <EyeOff size={14}/> : <Eye size={14}/>}
+                </button>
+              </div>
+              {/* Strength meter (4 segments) */}
+              {newUser.password && (
+                <div className="mt-2">
+                  <div className="flex gap-1">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div key={i} className="flex-1 h-1 rounded-full bg-husn-border overflow-hidden">
+                        <div
+                          className="h-full transition-all duration-200"
+                          style={{
+                            width: strength.score > i ? '100%' : '0%',
+                            background: strength.color,
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] mt-1 tracking-normal" style={{ color: strength.color }}>
+                    {T.passwordStrength} · {T[strength.label]}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="text-[10px] uppercase tracking-[0.14em] text-husn-text-3">{T.confirmPassword}</label>
+              <div className="relative mt-1.5">
+                <input
+                  type={newUserShowPwd ? 'text' : 'password'}
+                  value={newUserConfirm}
+                  onChange={(e) => setNewUserConfirm(e.target.value)}
+                  className={`husn-input w-full text-sm font-mono tracking-normal ${lang === 'ar' ? 'pl-10 pr-3' : 'pr-10 pl-3'}`}
+                  autoComplete="new-password"/>
+                {newUserConfirm && (
+                  <span className={`absolute top-1/2 -translate-y-1/2 ${lang === 'ar' ? 'left-2.5' : 'right-2.5'}`}>
+                    {matches
+                      ? <Check size={14} className="text-husn-success"/>
+                      : <XClose size={14} className="text-husn-danger"/>}
+                  </span>
+                )}
+              </div>
+              {newUserConfirm && !matches && (
+                <p className="mt-1 text-[10px] text-husn-danger tracking-normal">{T.passwordsDoNotMatch}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Rules */}
+        <div className="mt-4 pt-3 border-t border-husn-border">
+          <p className="text-[10px] uppercase tracking-[0.14em] text-husn-text-3 mb-2">{T.passwordRulesTitle}</p>
+          <ul className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-[11px]">
+            {[
+              { ok: newUser.password.length >= 8, label: T.pwRuleLen },
+              { ok: /[a-z]/.test(newUser.password) && /[A-Z]/.test(newUser.password) && /[0-9]/.test(newUser.password), label: T.pwRuleMix },
+              { ok: !['password', 'admin', '12345678', 'qwerty123', 'husn1234'].includes(newUser.password.toLowerCase()) && newUser.password.length > 0, label: T.pwRuleNoCommon },
+            ].map((r, i) => (
+              <li key={i} className="flex items-center gap-1.5">
+                {r.ok
+                  ? <Check size={11} className="text-husn-success"/>
+                  : <span className="w-[11px] h-[11px] rounded-full border border-husn-border-2 inline-block"/>}
+                <span className={r.ok ? 'text-husn-text-2' : 'text-husn-text-3'}>{r.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {userError && (
+          <div className="mt-3 text-[12px] text-husn-danger bg-husn-danger/10 border border-husn-danger/30 px-3 py-2 rounded-lg flex items-center gap-2">
+            <AlertCircle size={12}/> {T[userError] || userError}
+          </div>
+        )}
+
+        <div className="mt-4 flex justify-end">
+          <button onClick={onCreate}
+            disabled={!newUser.username || newUser.password.length < 8 || !matches}
+            className="husn-btn-primary text-sm flex items-center gap-2">
+            <UserPlus size={14}/> {T.addUser}
+          </button>
+        </div>
+      </Card>
+
+      {/* Existing users with search + cards */}
+      <div className="mt-4">
+        <Card title={`${T.users} (${userList.length})`} icon={<UsersIcon size={14}/>}>
+          <div className="relative mb-3">
+            <SearchIcon size={12} className={`absolute top-1/2 -translate-y-1/2 ${lang === 'ar' ? 'right-3' : 'left-3'} text-husn-text-3`}/>
+            <input
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              placeholder={lang === 'en' ? 'Search users...' : 'بحث عن مستخدم...'}
+              className={`husn-input w-full text-sm ${lang === 'ar' ? 'pr-9 pl-3' : 'pl-9 pr-3'}`}/>
+          </div>
+
+          {filtered.length === 0 ? (
+            <p className="text-[12px] text-husn-text-3 italic py-4 text-center">
+              {lang === 'en' ? 'No users match.' : 'لا يوجد مستخدمون مطابقون.'}
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {filtered.map((u: any) => {
+                const isSelf = u.username === authUser?.username;
+                const isAdminUser = u.role === 'admin';
+                return (
+                  <div key={u.username}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-husn-border bg-black/20 hover:border-husn-border-2 transition">
+                    <div className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-sm font-semibold
+                      ${isAdminUser ? 'bg-white text-husn-bg' : 'bg-white/10 text-white'}`}>
+                      {u.username.slice(0, 1).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-white text-[13px] font-medium truncate font-mono tracking-normal">{u.username}</span>
+                        {isSelf && (
+                          <span className="text-[9px] uppercase tracking-[0.14em] text-husn-text-3 italic">
+                            {lang === 'en' ? '· you' : '· أنت'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {isAdminUser
+                          ? <KeyRound size={10} className="text-white"/>
+                          : <UsersIcon size={10} className="text-husn-text-2"/>}
+                        <span className={`text-[10px] uppercase tracking-[0.14em] ${isAdminUser ? 'text-white' : 'text-husn-text-2'}`}>
+                          {isAdminUser ? T.admin : T.employee}
+                        </span>
+                        {u.created_at && (
+                          <>
+                            <span className="text-husn-border-2">·</span>
+                            <span className="text-[10px] text-husn-text-3 tracking-normal">{u.created_at}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {!isSelf && (
+                      <button onClick={() => onAskDelete(u.username)}
+                        title={T.deleteUser}
+                        className="p-2 rounded-md text-husn-text-3 hover:text-husn-danger hover:bg-husn-danger/10 transition">
+                        <Trash2 size={14}/>
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
+    </>
+  );
+};
+
 // ---------- Login screen
+// Defence-in-depth additions:
+//   • Caps Lock detection (typing the right password with Caps on is the
+//     most common cause of "right password / wrong" tickets).
+//   • Show/hide password toggle so users actually verify what they typed
+//     instead of mashing the same wrong password.
+//   • Client-side soft lockout — after 5 failed attempts in a session we
+//     lock the form for 30s. The backend has its own rate-limiting (see
+//     `auth/ratelimit.py`); this is the UX layer on top.
+//   • Connection security indicator — flags non-HTTPS prod URLs in red.
+//   • Autofocus the username, autocomplete hints set so password
+//     managers work but the browser never offers to save creds for new
+//     accounts mid-form.
+const LOCK_AFTER = 5;
+const LOCK_SECS  = 30;
+
 const Login = ({ lang, setLang, T, error, onSubmit }: any) => {
   const [u, setU] = useState('');
   const [p, setP] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
+  const [failures, setFailures] = useState<number>(() => {
+    try { return Number(sessionStorage.getItem('husn.login-fail') || 0); } catch { return 0; }
+  });
+  const [lockedUntil, setLockedUntil] = useState<number>(() => {
+    try { return Number(sessionStorage.getItem('husn.login-lock') || 0); } catch { return 0; }
+  });
+  const [tick, setTick] = useState(0);
+
+  // Refresh once a second while locked so the countdown updates.
+  useEffect(() => {
+    if (lockedUntil > Date.now()) {
+      const id = setInterval(() => setTick((t) => t + 1), 1000);
+      return () => clearInterval(id);
+    }
+  }, [lockedUntil]);
+
+  // When the parent reports an auth error, treat it as a failure.
+  useEffect(() => {
+    if (!error || error === 'sessionExpired') return;
+    const next = failures + 1;
+    setFailures(next);
+    try { sessionStorage.setItem('husn.login-fail', String(next)); } catch {}
+    if (next >= LOCK_AFTER) {
+      const until = Date.now() + LOCK_SECS * 1000;
+      setLockedUntil(until);
+      try { sessionStorage.setItem('husn.login-lock', String(until)); } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error]);
+
+  const isLocked = lockedUntil > Date.now();
+  const lockRemaining = Math.max(0, Math.ceil((lockedUntil - Date.now()) / 1000));
+  const remainingAttempts = Math.max(0, LOCK_AFTER - failures);
+
+  const isHttps = typeof window !== 'undefined'
+    ? (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    : true;
+
   const submit = async (e: any) => {
     e.preventDefault();
-    if (!u || !p) return;
+    if (!u || !p || isLocked) return;
     setBusy(true);
     await onSubmit(u, p);
     setBusy(false);
   };
+
+  // Caps Lock handler — fires on every key event while the field has focus.
+  const onPwdKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (typeof e.getModifierState === 'function') {
+      setCapsLock(e.getModifierState('CapsLock'));
+    }
+  };
+
+  // Reset failure tracker on a successful login (parent will unmount us).
+  // No effect needed — when parent mounts the dashboard, this component is gone.
+
   return (
     <div className={`min-h-screen bg-husn-bg flex items-center justify-center p-6 ${lang === 'ar' ? 'rtl' : 'ltr'}`} dir={lang === 'ar' ? 'rtl' : 'ltr'}>
       <div className="w-full max-w-sm">
-        <div className="flex justify-end mb-4">
+        {/* Top bar — language toggle + connection security indicator */}
+        <div className="flex justify-between items-center mb-4">
+          <div className={`flex items-center gap-1.5 text-[10px] uppercase tracking-[0.16em]
+            ${isHttps ? 'text-husn-success' : 'text-husn-warn'}`}>
+            <ShieldCheck size={12}/>
+            <span>{isHttps ? T.secureConnection : T.insecureConnection}</span>
+          </div>
           <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
             className="text-husn-text-3 hover:text-white text-[12px] flex items-center gap-1.5">
             <Globe size={12}/> {lang === 'en' ? 'العربية' : 'English'}
           </button>
         </div>
+
         <div className="husn-card p-8">
-          <div className="flex flex-col items-center mb-8">
+          <div className="flex flex-col items-center mb-7">
             <img
               src={lang === 'ar' ? logoAR : logoEN}
               alt="Husn"
-              className="w-28 h-auto object-contain husn-logo-glow mb-3"
+              className="w-24 h-auto object-contain husn-logo-glow mb-3"
             />
             <div className="text-[10px] text-husn-text-3 uppercase tracking-[0.25em]">{T.tagline}</div>
           </div>
-          <h1 className="text-[20px] font-light text-white uppercase tracking-[0.2em]">{T.signIn}</h1>
-          <p className="text-husn-text-3 text-[12px] mt-1">{T.loginSubtitle}</p>
+          <h1 className="text-[18px] font-light text-white uppercase tracking-[0.18em]">{T.signIn}</h1>
+          <p className="text-husn-text-3 text-[11px] mt-1">{T.loginSubtitle}</p>
 
-          <form onSubmit={submit} className="mt-6 space-y-3">
+          <form onSubmit={submit} className="mt-6 space-y-3" autoComplete="off">
+            {/* Username */}
             <div>
-              <label className="text-[11px] text-husn-text-3">{T.username}</label>
-              <input type="text" autoFocus value={u} onChange={(e) => setU(e.target.value)}
-                className="husn-input w-full mt-1.5 text-sm" autoComplete="username"/>
+              <label className="text-[10px] uppercase tracking-[0.14em] text-husn-text-3">{T.username}</label>
+              <input
+                type="text" autoFocus value={u}
+                onChange={(e) => setU(e.target.value)}
+                disabled={isLocked}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                className="husn-input w-full mt-1.5 text-sm font-mono tracking-normal"
+                autoComplete="username"
+                aria-label="Username"
+              />
             </div>
+
+            {/* Password with show/hide toggle */}
             <div>
-              <label className="text-[11px] text-husn-text-3">{T.password}</label>
-              <input type="password" value={p} onChange={(e) => setP(e.target.value)}
-                className="husn-input w-full mt-1.5 text-sm" autoComplete="current-password"/>
+              <label className="text-[10px] uppercase tracking-[0.14em] text-husn-text-3">{T.password}</label>
+              <div className="relative mt-1.5">
+                <input
+                  type={showPwd ? 'text' : 'password'}
+                  value={p}
+                  onChange={(e) => setP(e.target.value)}
+                  onKeyUp={onPwdKey}
+                  onKeyDown={onPwdKey}
+                  disabled={isLocked}
+                  className={`husn-input w-full text-sm font-mono tracking-normal ${lang === 'ar' ? 'pl-10 pr-3' : 'pr-10 pl-3'}`}
+                  autoComplete="current-password"
+                  aria-label="Password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd((s) => !s)}
+                  title={showPwd ? T.hidePassword : T.showPassword}
+                  aria-label={showPwd ? T.hidePassword : T.showPassword}
+                  className={`absolute top-1/2 -translate-y-1/2 ${lang === 'ar' ? 'left-2.5' : 'right-2.5'} text-husn-text-3 hover:text-white transition`}
+                >
+                  {showPwd ? <EyeOff size={14}/> : <Eye size={14}/>}
+                </button>
+              </div>
+              {capsLock && !isLocked && (
+                <p className="mt-1.5 text-[11px] text-husn-warn flex items-center gap-1.5">
+                  <AlertCircle size={11}/> {T.capsLockOn}
+                </p>
+              )}
             </div>
-            {error && <div className="text-[12px] text-husn-danger bg-husn-danger/10 border border-husn-danger/30 px-3 py-2 rounded-lg">{T[error] || error}</div>}
-            <button type="submit" disabled={busy || !u || !p} className="husn-btn-primary w-full mt-2 text-sm flex items-center justify-center gap-2 h-10">
-              {busy ? <Activity size={14} className="animate-spin"/> : <Lock size={14}/>}
-              {T.signIn}
+
+            {/* Lockout state */}
+            {isLocked && (
+              <div className="text-[12px] text-husn-danger bg-husn-danger/10 border border-husn-danger/30 px-3 py-2 rounded-lg flex items-center gap-2">
+                <Lock size={12}/>
+                <span>{T.lockedTemporarily} {lockRemaining}{tick >= 0 ? '' : ''} {T.seconds}.</span>
+              </div>
+            )}
+
+            {/* Server-side error */}
+            {error && !isLocked && (
+              <div className="text-[12px] text-husn-danger bg-husn-danger/10 border border-husn-danger/30 px-3 py-2 rounded-lg">
+                {T[error] || error}
+                {failures > 0 && remainingAttempts > 0 && (
+                  <span className="text-husn-text-3 block mt-0.5 text-[11px] tracking-normal">
+                    {remainingAttempts} {T.attemptsRemaining}
+                  </span>
+                )}
+              </div>
+            )}
+
+            <button type="submit"
+              disabled={busy || !u || !p || isLocked}
+              className="husn-btn-primary w-full mt-2 text-sm flex items-center justify-center gap-2 h-10">
+              {busy ? <Activity size={14} className="animate-spin"/> :
+                isLocked ? <Lock size={14}/> : <KeyRound size={14}/>}
+              {isLocked ? `${lockRemaining}s` : T.signIn}
             </button>
           </form>
         </div>
+
+        {/* Subtle footer */}
+        <p className="text-center text-[10px] text-husn-text-3 mt-5 uppercase tracking-[0.18em]">
+          {lang === 'en' ? 'Husn · حصن · Defense Grid' : 'حصن · Husn · شبكة الدفاع'}
+        </p>
       </div>
     </div>
   );

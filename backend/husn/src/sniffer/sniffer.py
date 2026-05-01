@@ -57,6 +57,12 @@ class Flow:
     last_fwd_ts: float = 0.0
     syn_count: int = 0
     ack_count: int = 0
+    # First payload bytes seen on the flow, rendered as a printable
+    # preview (non-ASCII shown as ".") and truncated. Lets the analyst
+    # actually see what the attacker sent — RCE strings, brute-force
+    # passwords, scan banners — in the AI Inspector view.
+    payload_preview: str = ""
+    payload_bytes: int = 0
 
     def packet_count(self) -> int:
         return len(self.fwd_pkt_lens) + len(self.bwd_pkt_lens)
@@ -111,6 +117,10 @@ class LiveSniffer:
         self._error: str | None = None
         self._iface: str | None = None
         self._recent_preds: deque[dict[str, Any]] = deque(maxlen=PREDICTIONS_RING)
+        # Rich, deeper-detail ring for the AI Inspector tab — fewer entries
+        # but each one carries the full 17-feature snapshot the model saw
+        # plus the payload preview. Kept short so JSON polls stay tiny.
+        self._recent_packets: deque[dict[str, Any]] = deque(maxlen=60)
 
     # ---------- lifecycle
 
@@ -179,7 +189,7 @@ class LiveSniffer:
 
     def _on_packet(self, pkt) -> None:
         try:
-            from scapy.all import IP, TCP, UDP
+            from scapy.all import IP, TCP, UDP, Raw
         except Exception:
             return
 
@@ -198,6 +208,26 @@ class LiveSniffer:
         elif pkt.haslayer(UDP):
             u = pkt[UDP]
             sport, dport = int(u.sport), int(u.dport)
+
+        # Pull the application-layer payload (HTTP body, SSH banner,
+        # whatever rode on top of TCP/UDP). We capture the first non-empty
+        # payload we see for a flow, render it as a printable preview, and
+        # don't overwrite — so an analyst sees the *initial* attack string,
+        # not the latest noise.
+        payload_preview = ""
+        payload_bytes = 0
+        if pkt.haslayer(Raw):
+            try:
+                raw = bytes(pkt[Raw].load)
+                payload_bytes = len(raw)
+                if raw:
+                    sample = raw[:128]
+                    payload_preview = "".join(
+                        (chr(b) if 32 <= b < 127 else ".")
+                        for b in sample
+                    )
+            except Exception:
+                payload_preview = ""
 
         now = time.time()
         plen = int(len(pkt))
@@ -233,6 +263,10 @@ class LiveSniffer:
                 f.fwd_pkt_lens.append(plen)
             else:
                 f.bwd_pkt_lens.append(plen)
+            # Latch the first non-empty payload preview onto the flow.
+            if payload_preview and not f.payload_preview:
+                f.payload_preview = payload_preview
+                f.payload_bytes = payload_bytes
 
     def _run_janitor(self) -> None:
         while not self._stop.wait(JANITOR_INTERVAL):
@@ -262,14 +296,18 @@ class LiveSniffer:
         rows = [f.to_features() for f in ready]
         df = pd.DataFrame(rows, columns=ai.features)
         try:
-            preds = ai.predict(df, source_ips=[f.src for f in ready])
+            preds = ai.predict(
+                df,
+                source_ips=[f.src for f in ready],
+                payloads=[f.payload_preview for f in ready],
+            )
         except Exception:
             log.exception("[sniffer] AI predict() crashed on real flow batch")
             return
 
         with self._lock:
             self._predictions += len(preds)
-            for f, p in zip(ready, preds):
+            for f, p, feat_row in zip(ready, preds, rows):
                 if p["is_anomaly"] and p["label"] != "BENIGN":
                     self._blocks_fired += 1
                 self._recent_preds.appendleft({
@@ -282,6 +320,27 @@ class LiveSniffer:
                     "label": p["label"],
                     "confidence": p["confidence"],
                     "is_anomaly": p["is_anomaly"],
+                })
+                # Rich snapshot for the AI Inspector view: every feature
+                # value the model actually consumed plus the payload
+                # preview that triggered it. JSON-safe — round floats so
+                # the table stays readable.
+                self._recent_packets.appendleft({
+                    "ts": now,
+                    "src": f.src,
+                    "dst": f.dst,
+                    "sport": f.sport,
+                    "dport": f.dport,
+                    "proto": f.proto,
+                    "pkts": f.packet_count(),
+                    "label": p["label"],
+                    "confidence": round(float(p["confidence"]), 4),
+                    "is_anomaly": bool(p["is_anomaly"]),
+                    "severity": p.get("severity", ""),
+                    "signature": p.get("signature"),  # rule-based hit if any
+                    "payload_preview": f.payload_preview,
+                    "payload_bytes": f.payload_bytes,
+                    "features": {k: round(float(v), 4) for k, v in feat_row.items()},
                 })
 
     # ---------- introspection
@@ -301,6 +360,7 @@ class LiveSniffer:
                 "blocks_fired": self._blocks_fired,
                 "error": self._error,
                 "recent_predictions": list(self._recent_preds),
+                "recent_packets": list(self._recent_packets),
             }
 
     def _cfg(self) -> dict[str, Any]:

@@ -935,6 +935,109 @@ def cli_run(req: CliRunRequest, actor: dict = Depends(require_admin)):
         return {"ok": False, "command": req.command, "args": req.args, "error": str(exc)}
 
 
+# ============================================================================
+# Auto Patch — static analysis + assisted remediation
+# ============================================================================
+from husn.src import autopatch as _autopatch
+
+
+class AutopatchApplyRequest(BaseModel):
+    issue_id: str
+
+
+class AutopatchManualRequest(BaseModel):
+    issue_id: str
+    new_line: str
+    reason: str = ""
+
+
+class AutopatchRejectRequest(BaseModel):
+    issue_id: str
+    reason: str = ""
+
+
+class AutopatchLLMRequest(BaseModel):
+    issue_id: str
+    extra_context: str = ""
+
+
+@app.get("/autopatch/scan")
+def autopatch_scan_endpoint(force: bool = False, _: dict = Depends(require_user)):
+    """Scan the project tree for known vulnerability patterns. Cached for 30s."""
+    return _autopatch.scan(force=force)
+
+
+@app.get("/autopatch/issues")
+def autopatch_issues(_: dict = Depends(require_user)):
+    return {"issues": _autopatch.list_issues()}
+
+
+@app.post("/autopatch/apply")
+def autopatch_apply(req: AutopatchApplyRequest, actor: dict = Depends(require_admin)):
+    res = _autopatch.apply_patch(req.issue_id, actor["username"])
+    if res.get("ok"):
+        _log(f"AUTOPATCH: {actor['username']} applied {req.issue_id}")
+    return res
+
+
+@app.post("/autopatch/manual")
+def autopatch_manual(req: AutopatchManualRequest, actor: dict = Depends(require_admin)):
+    res = _autopatch.save_manual(req.issue_id, actor["username"], req.new_line, req.reason)
+    if res.get("ok"):
+        _log(f"AUTOPATCH: {actor['username']} manual-edited {req.issue_id}")
+    return res
+
+
+@app.post("/autopatch/reject")
+def autopatch_reject(req: AutopatchRejectRequest, actor: dict = Depends(require_admin)):
+    res = _autopatch.reject_patch(req.issue_id, actor["username"], req.reason)
+    if res.get("ok"):
+        _log(f"AUTOPATCH: {actor['username']} rejected {req.issue_id} ({req.reason!r})")
+    return res
+
+
+@app.post("/autopatch/llm-suggest")
+def autopatch_llm(req: AutopatchLLMRequest, actor: dict = Depends(require_admin)):
+    return _autopatch.llm_suggest(req.issue_id, actor["username"], req.extra_context)
+
+
+@app.get("/autopatch/history")
+def autopatch_history(limit: int = 100, _: dict = Depends(require_user)):
+    return {"total": _autopatch.history_count(), "items": _autopatch.history_recent(limit=limit)}
+
+
+# ---- Project-level backups (Auto Patch toolbar action) ----
+
+@app.post("/autopatch/backup")
+def autopatch_backup_create(actor: dict = Depends(require_admin)):
+    res = _autopatch.backups.create()
+    if res.get("ok"):
+        _log(f"AUTOPATCH: {actor['username']} created backup {res['filename']} ({res['files']} files, {res['size_bytes']} B)")
+    return res
+
+
+@app.get("/autopatch/backups")
+def autopatch_backup_list(_: dict = Depends(require_admin)):
+    return {"backups": _autopatch.backups.list_all()}
+
+
+@app.delete("/autopatch/backups/{filename}")
+def autopatch_backup_delete(filename: str, actor: dict = Depends(require_admin)):
+    res = _autopatch.backups.delete(filename)
+    if res.get("ok"):
+        _log(f"AUTOPATCH: {actor['username']} deleted backup {filename}")
+    return res
+
+
+@app.get("/autopatch/backups/{filename}/download")
+def autopatch_backup_download(filename: str, _: dict = Depends(require_admin)):
+    from fastapi.responses import FileResponse
+    p = _autopatch.backups.get_path(filename)
+    if p is None:
+        raise HTTPException(status_code=404, detail="backup not found")
+    return FileResponse(path=str(p), media_type="application/gzip", filename=filename)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

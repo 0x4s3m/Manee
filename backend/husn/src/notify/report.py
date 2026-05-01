@@ -107,76 +107,254 @@ def _shap_chart_png(features: list[dict[str, Any]]) -> bytes | None:
     return buf.getvalue()
 
 
-def _markdown(inc: dict[str, Any]) -> str:
-    return f"""# Husn Incident Report
+# ────── Severity → palette ────────────────────────────────────────────
+# Email clients are inconsistent with CSS — keep colors as inline hex
+# values everywhere. The hero band, the badge, and the recommended-action
+# bullets all key off the same severity color so the visual urgency
+# matches the words.
+def _sev_palette(severity: str) -> dict[str, str]:
+    s = (severity or "low").lower()
+    if s == "critical":
+        return {"name": "CRITICAL", "color": "#f43f5e", "bg": "#1a0810",
+                "icon": "⚠", "tag": "Immediate response required"}
+    if s == "high":
+        return {"name": "HIGH",     "color": "#f97316", "bg": "#1a0d05",
+                "icon": "▲", "tag": "Active threat — review now"}
+    if s == "medium":
+        return {"name": "MEDIUM",   "color": "#f59e0b", "bg": "#1a1208",
+                "icon": "●", "tag": "Suspicious activity"}
+    return {"name": "LOW",          "color": "#10b981", "bg": "#08160e",
+            "icon": "✓", "tag": "Routine detection"}
 
-**Detected**: {inc['detected_at_iso']}
-**Host**: `{inc['host']}` ({inc.get('domain') or 'no domain configured'})
-**Organization**: {inc['organization']}
+
+def _ago_str(detected_at: float) -> str:
+    delta = max(0, int(time.time() - detected_at))
+    if delta < 60:    return f"{delta}s ago"
+    if delta < 3600:  return f"{delta // 60}m ago"
+    if delta < 86400: return f"{delta // 3600}h ago"
+    return f"{delta // 86400}d ago"
+
+
+def _markdown(inc: dict[str, Any]) -> str:
+    sig = inc.get("signature") or "—"
+    return f"""# 🛡 Husn Incident Report
+
+> **{inc['severity'].upper()}** — {inc['attack_type']} from `{inc['source_ip']}`
+> Detected {inc['detected_at_iso']} on host `{inc['host']}`
+
+---
 
 ## Threat
-- **Source IP**: `{inc['source_ip']}`
-- **Attack Type**: **{inc['attack_type']}**
-- **Severity**: {inc['severity']}
-- **AI Confidence**: {inc['confidence']:.2%}
+
+| Field | Value |
+|---|---|
+| Source IP | `{inc['source_ip']}` |
+| Attack Type | **{inc['attack_type']}** |
+| Severity | **{inc['severity']}** |
+| AI Confidence | {inc['confidence']:.2%} |
+| Signature Match | {sig} |
+| Target | `{inc['target']}` |
+| Host | `{inc['host']}` |
+| Detected (UTC) | {inc['detected_at_iso']} |
 
 ## Response
-- **Action Taken**: {inc['action']}
-- **Target**: `{inc['target']}`
+- **{inc['action']}**
 
-## Notes
-This report was generated automatically by the Husn (حصن) Intelligent Cyber Defense System.
-No human intervention was required to detect or contain this threat.
+## Recommended actions
+1. Open the **Husn Dashboard → Defense** to review the live block list.
+2. If this IP is yours or a partner, add it to **Defense → Whitelist**.
+3. Open **Kill Chain** to see how far the attacker progressed.
+4. Open **AI Inspector** for the exact 17 features and payload preview.
+5. If false positive: unblock from the dashboard and we'll log a learning sample.
+
+---
+
+_Generated automatically by Husn (حصن) Intelligent Cyber Defense System.
+No human intervention was required to detect or contain this threat._
 """
 
 
 def _explanation_block_html(exp: dict[str, str] | None) -> str:
     if not exp: return ""
     return (
-        '<tr><td style="padding:18px 32px;background:#0e1520;border-top:1px solid #1f2a37">'
-        '<div style="font-size:11px;letter-spacing:0.18em;color:#8b919e;text-transform:uppercase;margin-bottom:8px">Explanation</div>'
-        f'<p style="font-size:14px;color:#e6f1ff;line-height:1.55;margin:0 0 10px 0">{exp["en"]}</p>'
-        f'<p dir="rtl" style="font-size:14px;color:#e6f1ff;line-height:1.7;margin:0;font-family:Arial,sans-serif">{exp["ar"]}</p>'
+        '<tr><td style="padding:20px 28px;background:#0a0a0a;border-top:1px solid rgba(255,255,255,0.08)">'
+        '<div style="font-size:10px;letter-spacing:0.20em;color:#71717a;text-transform:uppercase;margin-bottom:10px;font-weight:600">'
+        '⊙ What this means'
+        '</div>'
+        f'<p style="font-size:14px;color:#e4e4e7;line-height:1.6;margin:0 0 12px 0">{exp["en"]}</p>'
+        f'<p dir="rtl" style="font-size:14px;color:#a1a1aa;line-height:1.8;margin:0;font-family:Tahoma,Arial,sans-serif;border-top:1px solid rgba(255,255,255,0.05);padding-top:10px">{exp["ar"]}</p>'
         '</td></tr>'
     )
 
 
 def _html(inc: dict[str, Any], has_chart: bool, explanation: dict[str, str] | None = None) -> str:
+    pal = _sev_palette(inc["severity"])
+    ago = _ago_str(inc["detected_at"])
+    sig = inc.get("signature")
+    domain = inc.get("domain") or ""
+    dash_url = f"https://{domain}/" if domain else "#"
+
+    # ── Optional signature row (only when payload-scanner matched) ──────
+    sig_row = ""
+    if sig:
+        sig_row = (
+            '<tr>'
+            '<td style="padding:8px 0;color:#71717a;width:160px;vertical-align:top;font-size:13px">Signature match</td>'
+            f'<td style="padding:8px 0">'
+            f'<span style="display:inline-block;padding:3px 10px;border-radius:6px;background:rgba(245,158,11,0.10);'
+            f'border:1px solid rgba(245,158,11,0.40);color:#f59e0b;font-size:12px;font-family:ui-monospace,Menlo,monospace">'
+            f'⚠ {sig}</span></td></tr>'
+        )
+
+    # ── SHAP chart block (CID-inlined, with caption) ───────────────────
     chart_block = (
-        '<tr><td style="padding:24px 32px;background:#0a0e14;text-align:center">'
+        '<tr><td style="padding:0 28px 24px 28px;background:#0a0a0a">'
+        '<div style="background:#050505;border:1px solid rgba(255,255,255,0.08);border-radius:10px;overflow:hidden">'
+        '<div style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.06)">'
+        '<div style="font-size:10px;letter-spacing:0.20em;color:#71717a;text-transform:uppercase;font-weight:600">⌬ AI Decision · SHAP top features</div>'
+        '<div style="font-size:11px;color:#52525b;margin-top:4px">Bars show which features pushed the verdict towards anomaly. Longer = more influence.</div>'
+        '</div>'
+        '<div style="padding:14px 14px 8px 14px;text-align:center">'
         '<img src="cid:shap_chart" alt="SHAP feature importance" '
-        'style="max-width:100%;border-radius:8px;border:1px solid #1f2a37"/></td></tr>'
+        'style="max-width:100%;height:auto;border-radius:6px;display:block;margin:0 auto"/>'
+        '</div></div></td></tr>'
         if has_chart else ""
     )
-    sev = inc["severity"].lower()
-    sev_color = {"high": "#ff3860", "medium": "#ffdd57", "low": "#48c774"}.get(sev, "#00ff9d")
+
+    # ── CTA row — only if a domain is configured ────────────────────────
+    cta_row = ""
+    if domain:
+        cta_row = (
+            '<tr><td style="padding:8px 28px 24px 28px;background:#0a0a0a">'
+            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">'
+            '<tr>'
+            f'<td style="text-align:center"><!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{dash_url}" style="height:42px;v-text-anchor:middle;width:200px;" arcsize="14%" stroke="f" fillcolor="#ffffff"><w:anchorlock/><center style="color:#000;font-family:sans-serif;font-size:13px;font-weight:600">Open Dashboard</center></v:roundrect><![endif]-->'
+            f'<a href="{dash_url}" style="background:#ffffff;color:#000000;text-decoration:none;padding:12px 28px;border-radius:8px;display:inline-block;font-size:13px;font-weight:600;letter-spacing:0.10em;text-transform:uppercase;mso-hide:all">Open Dashboard</a>'
+            '</td></tr></table></td></tr>'
+        )
+
+    # ── Recommended actions checklist ───────────────────────────────────
+    actions_block = (
+        '<tr><td style="padding:18px 28px 22px 28px;background:#050505;border-top:1px solid rgba(255,255,255,0.06)">'
+        '<div style="font-size:10px;letter-spacing:0.20em;color:#71717a;text-transform:uppercase;font-weight:600;margin-bottom:14px">↳ Recommended actions</div>'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;color:#a1a1aa;line-height:1.6">'
+        f'<tr><td style="width:24px;color:{pal["color"]};font-weight:700;vertical-align:top;padding:3px 8px 3px 0">1.</td><td style="padding:3px 0">Review the live block in <strong style="color:#fff">Dashboard → Defense</strong>.</td></tr>'
+        f'<tr><td style="color:{pal["color"]};font-weight:700;vertical-align:top;padding:3px 8px 3px 0">2.</td><td style="padding:3px 0">If this IP is yours, add it to <strong style="color:#fff">Defense → Whitelist</strong>.</td></tr>'
+        f'<tr><td style="color:{pal["color"]};font-weight:700;vertical-align:top;padding:3px 8px 3px 0">3.</td><td style="padding:3px 0">Open <strong style="color:#fff">Kill Chain</strong> to see how far the attacker progressed.</td></tr>'
+        f'<tr><td style="color:{pal["color"]};font-weight:700;vertical-align:top;padding:3px 8px 3px 0">4.</td><td style="padding:3px 0">Open <strong style="color:#fff">AI Inspector</strong> for features and payload preview.</td></tr>'
+        f'<tr><td style="color:{pal["color"]};font-weight:700;vertical-align:top;padding:3px 8px 3px 0">5.</td><td style="padding:3px 0">Mark as false positive (unblock) — Husn logs it as a learning sample.</td></tr>'
+        '</table></td></tr>'
+    )
+
     return f"""<!doctype html>
-<html><body style="margin:0;padding:0;background:#0a0e14;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#e6f1ff">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0a0e14">
-<tr><td align="center" style="padding:40px 16px">
-  <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="background:#0e1520;border:1px solid #1f2a37;border-radius:12px;overflow:hidden">
-    <tr><td style="padding:24px 32px;background:linear-gradient(90deg,#0e1520,#102233);border-bottom:1px solid #1f2a37">
-      <div style="font-size:12px;letter-spacing:0.2em;color:#00ff9d;text-transform:uppercase">{inc['organization']}</div>
-      <div style="font-size:22px;font-weight:600;margin-top:4px">حصن — Husn Incident Alert</div>
-      <div style="font-size:13px;color:#9aa6b2;margin-top:4px">{inc['detected_at_iso']} · host <code style="color:#e6f1ff">{inc['host']}</code></div>
-    </td></tr>
-    <tr><td style="padding:24px 32px">
-      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.6">
-        <tr><td style="color:#9aa6b2;width:140px">Source IP</td><td><code style="color:#ff7b72;font-size:15px">{inc['source_ip']}</code></td></tr>
-        <tr><td style="color:#9aa6b2">Attack Type</td><td><strong style="color:#e6f1ff">{inc['attack_type']}</strong></td></tr>
-        <tr><td style="color:#9aa6b2">Severity</td><td><span style="display:inline-block;padding:2px 10px;border-radius:999px;background:{sev_color};color:#0a0e14;font-weight:600;font-size:12px">{inc['severity'].upper()}</span></td></tr>
-        <tr><td style="color:#9aa6b2">AI Confidence</td><td>{inc['confidence']:.1%}</td></tr>
-        <tr><td style="color:#9aa6b2">Target</td><td><code style="color:#e6f1ff">{inc['target']}</code></td></tr>
-        <tr><td style="color:#9aa6b2;padding-top:12px" valign="top">Action Taken</td><td style="padding-top:12px;color:#48c774;font-weight:600">{inc['action']}</td></tr>
+<html lang="en" dir="ltr"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="x-apple-disable-message-reformatting"/>
+<title>Husn Incident — {inc['attack_type']}</title>
+</head>
+<body style="margin:0;padding:0;background:#000000;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#e4e4e7;-webkit-font-smoothing:antialiased">
+<!-- Preheader (hidden but shown in inbox previews) -->
+<div style="display:none;max-height:0;overflow:hidden;color:transparent;font-size:1px">
+{pal['name']} alert · {inc['attack_type']} from {inc['source_ip']} · {ago} · Husn Defense Grid blocked it automatically.
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#000000">
+<tr><td align="center" style="padding:32px 12px">
+  <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="background:#0a0a0a;border:1px solid rgba(255,255,255,0.08);border-radius:14px;overflow:hidden;max-width:640px;width:100%">
+
+    <!-- ============== HERO ============== -->
+    <tr><td style="background:{pal['bg']};border-bottom:1px solid {pal['color']}40;padding:24px 28px">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="vertical-align:top">
+            <div style="font-size:10px;letter-spacing:0.22em;color:#71717a;text-transform:uppercase;font-weight:600">حصن · Husn Defense Grid</div>
+            <div style="font-size:24px;font-weight:600;margin-top:6px;color:#ffffff;letter-spacing:0.5px">
+              <span style="color:{pal['color']};font-size:24px;margin-right:8px">{pal['icon']}</span>
+              {inc['attack_type']}
+            </div>
+            <div style="font-size:12px;color:#a1a1aa;margin-top:6px">{pal['tag']} · detected {ago}</div>
+          </td>
+          <td style="vertical-align:top;text-align:right;width:120px">
+            <div style="display:inline-block;padding:6px 14px;border-radius:999px;background:{pal['color']};color:#000000;font-weight:700;font-size:11px;letter-spacing:0.14em">{pal['name']}</div>
+          </td>
+        </tr>
       </table>
     </td></tr>
+
+    <!-- ============== STATUS BAR ============== -->
+    <tr><td style="background:#050505;padding:12px 28px;border-bottom:1px solid rgba(255,255,255,0.06)">
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:11px;color:#71717a;text-transform:uppercase;letter-spacing:0.14em">
+        <tr>
+          <td>● <span style="color:#10b981;font-weight:600">Auto-blocked</span></td>
+          <td style="text-align:center">{inc['detected_at_iso']}</td>
+          <td style="text-align:right">host <span style="color:#a1a1aa;font-family:ui-monospace,Menlo,monospace">{inc['host']}</span></td>
+        </tr>
+      </table>
+    </td></tr>
+
+    <!-- ============== THREAT FACTS ============== -->
+    <tr><td style="padding:24px 28px;background:#0a0a0a">
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13px;line-height:1.6">
+        <tr>
+          <td style="padding:8px 0;color:#71717a;width:160px;vertical-align:top">Source IP</td>
+          <td style="padding:8px 0"><code style="color:{pal['color']};font-size:14px;font-family:ui-monospace,Menlo,Monaco,monospace;background:rgba(255,255,255,0.04);padding:3px 8px;border-radius:5px">{inc['source_ip']}</code></td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0;color:#71717a;vertical-align:top">Attack type</td>
+          <td style="padding:8px 0;color:#ffffff;font-weight:600">{inc['attack_type']}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0;color:#71717a;vertical-align:top">AI confidence</td>
+          <td style="padding:8px 0">
+            <table cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="font-size:14px;color:#fff;font-weight:600;padding-right:10px">{inc['confidence']:.1%}</td>
+                <td>
+                  <table cellpadding="0" cellspacing="0" width="120" style="background:rgba(255,255,255,0.06);border-radius:3px;height:6px">
+                    <tr><td style="background:{pal['color']};border-radius:3px;height:6px;width:{int(min(120, max(8, inc['confidence'] * 120)))}px"></td></tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        {sig_row}
+        <tr>
+          <td style="padding:8px 0;color:#71717a;vertical-align:top">Target</td>
+          <td style="padding:8px 0;color:#e4e4e7;font-family:ui-monospace,Menlo,monospace">{inc['target']}</td>
+        </tr>
+        <tr>
+          <td style="padding:8px 0;color:#71717a;vertical-align:top">Action taken</td>
+          <td style="padding:8px 0;color:#10b981;font-weight:600">✓ {inc['action']}</td>
+        </tr>
+      </table>
+    </td></tr>
+
+    {cta_row}
     {chart_block}
     {_explanation_block_html(explanation)}
-    <tr><td style="padding:20px 32px;border-top:1px solid #1f2a37;font-size:12px;color:#6b7785;line-height:1.5">
-      Auto-generated by <strong style="color:#00ff9d">Husn (حصن)</strong> Intelligent Cyber Defense System.<br/>
-      No human intervention was required to detect or contain this threat.
+    {actions_block}
+
+    <!-- ============== FOOTER ============== -->
+    <tr><td style="padding:18px 28px;background:#000000;border-top:1px solid rgba(255,255,255,0.06)">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="font-size:10px;color:#52525b;letter-spacing:0.10em;line-height:1.6">
+            Auto-generated by <strong style="color:#a1a1aa">حصن · Husn</strong> Intelligent Cyber Defense System<br/>
+            <span style="color:#3f3f46">No human intervention was required to detect or contain this threat.</span>
+          </td>
+          <td style="text-align:right;font-size:10px;color:#52525b;letter-spacing:0.10em;vertical-align:top">
+            DefensThon 2026
+          </td>
+        </tr>
+      </table>
     </td></tr>
+
   </table>
+  <div style="margin-top:14px;font-size:10px;color:#3f3f46;letter-spacing:0.16em">
+    Husn · حصن · Defense Grid
+  </div>
 </td></tr></table>
 </body></html>"""
 
@@ -230,7 +408,13 @@ def emit(
                  incident.source_ip, config.get("notify.throttle_seconds", 60))
         return result
 
-    subject = f"[Husn] {incident.severity.upper()} — {incident.attack_type} from {incident.source_ip}"
+    sev_emoji = {"critical": "🚨", "high": "⚠️", "medium": "⚡", "low": "ℹ️"}.get(
+        incident.severity.lower(), "🛡"
+    )
+    subject = (
+        f"{sev_emoji} [Husn · {incident.severity.upper()}] "
+        f"{incident.attack_type} from {incident.source_ip} → blocked"
+    )
     inline = {"shap_chart": chart_png} if chart_png else None
     attachments = {f"{base.name}.md": md.encode("utf-8")}
     send_result = mailer.send(subject, html, md, inline_images=inline, attachments=attachments)

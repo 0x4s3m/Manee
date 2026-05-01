@@ -8,7 +8,8 @@ import {
   Cpu, Radio, Sparkles, KeyRound, GitFork, TerminalSquare, Volume2, VolumeX,
   Crosshair, MessageSquare, FileText, X as XClose, Play as PlayIcon,
   Search as SearchIcon, ChevronLeft, Target, Menu, ShieldCheck,
-  EyeOff, AlertCircle, Check,
+  EyeOff, AlertCircle, Check, Wrench,
+  Home, BarChart3, ShieldHalf, FlaskConical, Cog,
 } from 'lucide-react';
 import ForceGraph2D from 'react-force-graph-2d';
 import {
@@ -23,6 +24,7 @@ import logoEN from './assets/logo.png';
 import logoAR from './assets/logo_ar.png';
 import KillChainVisualizer from './components/KillChainVisualizer';
 import AIInspector from './components/AIInspector';
+import AutoPatch from './components/AutoPatch';
 
 // Auto-detect the API host from the URL the dashboard was loaded from.
 // Works on localhost, on the VPS public IP, on a real domain — no rebuild needed.
@@ -557,7 +559,7 @@ function App() {
           ${isMobile
             ? `fixed top-2 ${lang === 'ar' ? 'right-2' : 'left-2'} bottom-2 z-50 w-72
                ${drawerOpen ? 'translate-x-0 opacity-100' : (lang === 'ar' ? 'translate-x-[110%] opacity-0 pointer-events-none' : '-translate-x-[110%] opacity-0 pointer-events-none')}`
-            : (effectiveCollapsed ? 'w-[72px]' : 'w-60')
+            : (effectiveCollapsed ? 'w-14' : 'w-60')
           }`}
       >
         {/* Mobile-only close button at the top-right of the drawer */}
@@ -600,6 +602,7 @@ function App() {
         <nav className={`flex-1 ${effectiveCollapsed ? 'px-2' : 'px-3'} py-1 overflow-y-auto`}>
           {/* OVERVIEW */}
           <NavSection k="overview" title={T.navGroupOverview} alert={blocked.length > 0}
+            icon={<Home size={14}/>}
             collapsed={effectiveCollapsed} open={navOpen.overview} onToggle={toggleNavGroup}>
             <NavLink icon={<LayoutDashboard size={16}/>} label={T.monitoring} collapsed={effectiveCollapsed} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')}/>
             <NavLink icon={<Target size={16}/>} label={T.killChain} collapsed={effectiveCollapsed} active={activeTab === 'kill-chain'} onClick={() => setActiveTab('kill-chain')}
@@ -608,6 +611,7 @@ function App() {
 
           {/* TELEMETRY */}
           <NavSection k="telemetry" title={T.navGroupTelemetry}
+            icon={<BarChart3 size={14}/>}
             collapsed={effectiveCollapsed} open={navOpen.telemetry} onToggle={toggleNavGroup}>
             <NavLink icon={<Server size={16}/>} label={T.host} collapsed={effectiveCollapsed} active={activeTab === 'host'} onClick={() => setActiveTab('host')}/>
             <NavLink icon={<Network size={16}/>} label={T.network} collapsed={effectiveCollapsed} active={activeTab === 'network'} onClick={() => setActiveTab('network')}/>
@@ -618,6 +622,7 @@ function App() {
 
           {/* DEFENSE */}
           <NavSection k="detect" title={T.navGroupDetect} alert={blocked.length > 0}
+            icon={<ShieldHalf size={14}/>}
             collapsed={effectiveCollapsed} open={navOpen.detect} onToggle={toggleNavGroup}>
             <NavLink icon={<Search size={16}/>} label={T.detection} collapsed={effectiveCollapsed} active={activeTab === 'recon'} onClick={() => setActiveTab('recon')}/>
             <NavLink icon={<Eye size={16}/>} label={T.aiInspector} collapsed={effectiveCollapsed} active={activeTab === 'ai-inspect'} onClick={() => setActiveTab('ai-inspect')}
@@ -631,6 +636,7 @@ function App() {
 
           {/* ANALYSIS */}
           <NavSection k="analysis" title={T.navGroupAnalysis}
+            icon={<FlaskConical size={14}/>}
             collapsed={effectiveCollapsed} open={navOpen.analysis} onToggle={toggleNavGroup}>
             <NavLink icon={<MessageSquare size={16}/>} label={T.chat} collapsed={effectiveCollapsed} active={activeTab === 'chat'} onClick={() => setActiveTab('chat')}
               dot={chatStatus?.configured && chatHistory.length === 0 ? false : undefined}/>
@@ -640,7 +646,9 @@ function App() {
           {/* ADMIN */}
           {isAdmin && (
             <NavSection k="admin" title={T.navGroupAdmin}
+              icon={<Cog size={14}/>}
               collapsed={effectiveCollapsed} open={navOpen.admin} onToggle={toggleNavGroup}>
+              <NavLink icon={<Wrench size={16}/>} label={T.autoPatch} collapsed={effectiveCollapsed} active={activeTab === 'autopatch'} onClick={() => setActiveTab('autopatch')}/>
               <NavLink icon={<RefreshCw size={16}/>} label={T.updates} collapsed={effectiveCollapsed} active={activeTab === 'updates'} onClick={() => setActiveTab('updates')}
                 dot={updateStatus?.last_check?.available}/>
               <NavLink icon={<TerminalSquare size={16}/>} label={T.terminal} collapsed={effectiveCollapsed} active={activeTab === 'terminal'} onClick={() => setActiveTab('terminal')}/>
@@ -1463,6 +1471,20 @@ function App() {
                 </Tab>
               )}
 
+              {activeTab === 'autopatch' && isAdmin && (
+                <Tab k="autopatch">
+                  <div className="flex justify-between items-end mb-3">
+                    <div>
+                      <h3 className="text-[15px] font-light uppercase tracking-[0.18em] text-white">{T.autoPatch}</h3>
+                      <p className="text-husn-text-3 text-[11px] mt-1 tracking-normal max-w-2xl">
+                        {T.autoPatchDesc}
+                      </p>
+                    </div>
+                  </div>
+                  <AutoPatch api={api} isAdmin={isAdmin} T={T} lang={lang} addLog={addLog}/>
+                </Tab>
+              )}
+
               {activeTab === 'honeypot' && (
                 <Tab k="honeypot">
                   <div className="grid grid-cols-4 gap-4">
@@ -1773,6 +1795,7 @@ const tabTitle = (t: string, T: any) => ({
   chat: T.chat, reports: T.reports,
   'kill-chain': T.killChain,
   'ai-inspect': T.aiInspector,
+  autopatch: T.autoPatch,
 }[t] || 'Dashboard');
 
 const Tab = ({ children }: any) => (
@@ -1783,7 +1806,7 @@ const Tab = ({ children }: any) => (
 
 const NavLink = ({ icon, label, active, onClick, badge, dot, collapsed }: any) => (
   <button onClick={onClick} title={collapsed ? label : undefined}
-    className={`w-full flex items-center ${collapsed ? 'justify-center px-2' : 'gap-2.5 px-3'} py-2 rounded-lg text-[9.5px] font-medium uppercase tracking-[0.15em] transition-all relative
+    className={`w-full flex items-center ${collapsed ? 'justify-center px-1 py-2' : 'gap-2.5 px-3 py-2'} rounded-lg text-[9.5px] font-medium uppercase tracking-[0.15em] transition-all relative
       ${active
         ? 'bg-white/10 text-white border border-white/20 shadow-[inset_0_0_30px_rgba(255,255,255,0.04)]'
         : 'text-husn-text-3 border border-transparent hover:text-white hover:bg-white/[0.03]'}`}>
@@ -1915,15 +1938,26 @@ const SidebarSparkline = ({ series, blockedCount, lang }: {
 // so it reads as clearly interactive. When the whole sidebar is in
 // icon-only mode, the header collapses to a small centered divider so the
 // grouping is still legible without taking a whole row.
-const NavSection = ({ k, title, children, collapsed, open, onToggle, alert }: any) => {
+const NavSection = ({ k, title, children, collapsed, open, onToggle, alert, icon }: any) => {
   if (collapsed) {
+    // Collapsed mode: section is identified by a small centered icon
+    // (instead of a horizontal divider line). Hover shows the title as
+    // tooltip. Sections are visually grouped by the spacing around the
+    // icon plus a tiny faded divider underneath it.
     return (
-      <div className="my-2 relative">
-        <div className="mx-3 my-2 h-px bg-husn-border"/>
-        {alert && (
-          <span className="absolute right-2 -top-0.5 w-1.5 h-1.5 rounded-full bg-husn-danger animate-pulse"/>
-        )}
-        <div className="space-y-0.5">{children}</div>
+      <div className="my-1.5 relative">
+        <div className="flex justify-center" title={title}>
+          <span className={`flex items-center justify-center w-7 h-7 rounded-md border transition
+            ${alert
+              ? 'border-husn-danger/40 text-husn-danger bg-husn-danger/5'
+              : 'border-husn-border text-husn-text-3 bg-white/[0.02]'}`}>
+            {icon || <ChevronRight size={12}/>}
+            {alert && (
+              <span className="absolute -top-0.5 right-1 w-1.5 h-1.5 rounded-full bg-husn-danger animate-pulse"/>
+            )}
+          </span>
+        </div>
+        <div className="mt-1 space-y-0.5">{children}</div>
       </div>
     );
   }
@@ -1935,12 +1969,16 @@ const NavSection = ({ k, title, children, collapsed, open, onToggle, alert }: an
           text-[9px] font-semibold uppercase tracking-[0.10em] whitespace-nowrap
           text-husn-text-3 hover:text-white hover:bg-white/[0.02] transition group"
       >
-        <span className="flex items-center gap-1.5 min-w-0">
-          <span
-            className={`block w-1 h-1 rounded-full shrink-0 transition-colors ${
+        <span className="flex items-center gap-2 min-w-0">
+          {icon ? (
+            <span className={`shrink-0 ${alert ? 'text-husn-danger' : (open ? 'text-white' : 'text-husn-text-3')} group-hover:text-white transition-colors`}>
+              {icon}
+            </span>
+          ) : (
+            <span className={`block w-1 h-1 rounded-full shrink-0 transition-colors ${
               alert ? 'bg-husn-danger animate-pulse' : (open ? 'bg-white/70' : 'bg-husn-text-3')
-            }`}
-          />
+            }`}/>
+          )}
           <span className={`truncate ${alert ? 'text-husn-danger' : ''}`}>{title}</span>
         </span>
         <ChevronRight

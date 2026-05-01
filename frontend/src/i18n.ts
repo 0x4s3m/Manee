@@ -245,6 +245,10 @@ export const translations: any = {
     navGroupAnalysis:  "Analysis",
     navGroupAdmin:     "Admin",
 
+    // Auto Patch
+    autoPatch:        "Auto Patch",
+    autoPatchDesc:    "Static analysis + admin-approved remediation across the Husn project tree.",
+
     // Login security
     capsLockOn:        "Caps Lock is on",
     showPassword:      "Show password",
@@ -532,6 +536,10 @@ export const translations: any = {
     navGroupDetect:    "الدفاع",
     navGroupAnalysis:  "التحليل",
     navGroupAdmin:     "الإدارة",
+
+    // Auto Patch
+    autoPatch:        "التصحيح التلقائي",
+    autoPatchDesc:    "تحليل ثابت وإصلاحات معتمدة من المسؤول عبر شجرة مشروع حصن.",
 
     // Login security
     capsLockOn:        "زر Caps Lock مفعّل",

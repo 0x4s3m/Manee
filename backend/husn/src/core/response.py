@@ -56,6 +56,7 @@ class DefenseResponse:
         confidence: float = 0.0,
         target: str = "",
         features: dict[str, float] | None = None,
+        signature: str | None = None,
     ) -> dict[str, Any]:
         """Block `ip_address`. Idempotent: re-blocking a blocked IP is a no-op
         for iptables but still emits a (throttled) report."""
@@ -126,6 +127,7 @@ class DefenseResponse:
                     confidence=float(confidence or 0.0),
                     target=target,
                     action=f"Blocked via {iptables_result.get('mode', 'iptables')}",
+                    extras={"signature": signature} if signature else {},
                 ),
                 feature_importance=feature_importance_list,
             )

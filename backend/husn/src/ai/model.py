@@ -156,6 +156,7 @@ class HusnAI:
                             severity=severity,
                             confidence=float(confidence[i]),
                             features=row_features,
+                            signature=sig["pattern_name"] if sig else None,
                         )
                         action_taken = f"Blocked {source_ips[i]}"
                 else:

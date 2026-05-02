@@ -1,4 +1,4 @@
-# Husn (حصن) — Production Configuration Template
+# Manee (منيع) — Production Configuration Template
 # Copy to /etc/husn/config.yml on the target server, then edit.
 # Secrets MUST come from environment variables (use *_env keys), never on disk.
 
@@ -24,7 +24,7 @@ smtp:
   use_ssl: true                        # full SSL (port 465 path) — Hostinger uses this
   user: husn@build-aura.com
   password_env: HUSN_SMTP_PASSWORD     # read from env var, never inline the password
-  from_addr: "Husn Defender <husn@build-aura.com>"
+  from_addr: "Manee Defender <Manee@build-aura.com>"
   timeout_seconds: 15
 
 # Who receives incident reports. The dashboard /recipients endpoint can mutate

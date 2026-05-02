@@ -405,9 +405,13 @@ function App() {
     setCliBusy(true); setCliOut(null);
     try {
       const r = await api.post('/cli/run', { command: cliCmd, args: cliArgs });
-      setCliOut({ html: r.data.html || '', text: r.data.text || r.data.error || '' });
+      const text = r.data?.ok === false
+        ? `[error] ${r.data?.error || 'command failed'}`
+        : (r.data?.text || r.data?.error || '(no output)');
+      setCliOut({ html: r.data?.html || '', text });
     } catch (e: any) {
-      setCliOut({ html: '', text: e?.response?.data?.detail || 'request failed' });
+      const detail = e?.response?.data?.detail || e?.message || 'request failed';
+      setCliOut({ html: '', text: `[network error] ${detail}` });
     }
     setCliBusy(false);
   };
@@ -578,7 +582,7 @@ function App() {
         <div className={`flex flex-col items-center justify-center ${effectiveCollapsed ? 'px-2 pt-5 pb-3' : 'px-5 pt-6 pb-4'}`}>
           <img
             src={lang === 'ar' ? logoAR : logoEN}
-            alt="Husn"
+            alt="Manee"
             className={`${effectiveCollapsed ? 'w-9' : 'w-24'} h-auto object-contain husn-logo-glow transition-all duration-300`}
           />
           {!effectiveCollapsed && (
@@ -793,7 +797,7 @@ function App() {
             </h1>
             <p className="text-husn-text-3 text-[11px] uppercase tracking-[0.16em] mt-1 flex items-center gap-2">
               <ShieldCheck size={11} className="text-husn-success"/>
-              <span>{lang === 'en' ? 'Husn Defense Grid' : 'شبكة حصن الدفاعية'}</span>
+              <span>{lang === 'en' ? 'Manee Defense Grid' : 'شبكة منيع الدفاعية'}</span>
               <span className="text-husn-border-2">·</span>
               <span className="flex items-center gap-1">
                 <span className="w-1 h-1 rounded-full bg-husn-success animate-pulse"/>
@@ -1541,7 +1545,11 @@ function App() {
                       className="bg-black/40 border border-husn-border rounded-xl p-4 min-h-[420px] max-h-[55vh] overflow-y-auto"
                       style={{ scrollBehavior: 'smooth', overflowAnchor: 'none' }}>
                       {chatHistory.length === 0 && (
-                        <p className="text-[12px] text-husn-text-3 italic">husn analyst ready — ask anything about your live security state.</p>
+                        <p className="text-[12px] text-husn-text-3 italic">
+                          {lang === 'en'
+                            ? 'Manee analyst ready — ask anything about your live security state.'
+                            : 'محلل منيع جاهز — اسأل عن حالة الأمان الحية.'}
+                        </p>
                       )}
                       {chatHistory.map((m, i) => (
                         <div key={i} className={`mb-4 ${m.role === 'user' ? 'text-white' : 'text-husn-text'}`}>
@@ -1653,6 +1661,7 @@ function App() {
                     <div className="flex gap-2 mb-3">
                       <select value={cliCmd} onChange={(e) => setCliCmd(e.target.value)}
                         className="husn-input text-sm" style={{ minWidth: 140 }}>
+                        {cliCommands.length === 0 && <option value="">— loading —</option>}
                         {cliCommands.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
                       <input value={cliArgs} onChange={(e) => setCliArgs(e.target.value)}
@@ -1665,15 +1674,27 @@ function App() {
                         {T.runCommand}
                       </button>
                     </div>
-                    <div className="bg-black border border-husn-border rounded-xl p-4 min-h-[420px] max-h-[60vh] overflow-y-auto"
+                    {/* Terminal panel — text-only render so colors stay
+                        readable on black. The Rich HTML export contains
+                        light-on-light styles that disappear here, so we
+                        ignore html and use the plain text instead. */}
+                    <div className="bg-black border border-husn-border rounded-xl p-4 min-h-[420px] max-h-[60vh] overflow-y-auto terminal-scroll"
                       style={{ scrollBehavior: 'auto', overflowAnchor: 'none' }}>
-                      {cliOut?.html ? (
-                        <div className="text-[12.5px] leading-snug" dangerouslySetInnerHTML={{ __html: cliOut.html }}/>
-                      ) : cliOut?.text ? (
-                        <pre className="text-[12.5px] text-husn-text-2 whitespace-pre-wrap font-mono">{cliOut.text}</pre>
-                      ) : (
-                        <p className="text-[12px] text-husn-text-3 italic">husn $ — pick a command and press Run.</p>
-                      )}
+                      <pre className="text-[12.5px] leading-relaxed font-mono whitespace-pre-wrap break-all">
+                        {/* Echo the prompt + command always so the user
+                            sees feedback the moment they hit Run. */}
+                        <span className="text-husn-success">husn$ </span>
+                        <span className="text-white">{cliCmd}{cliArgs ? ' ' + cliArgs : ''}</span>
+                        {cliBusy && (
+                          <span className="text-husn-text-3 italic"> · running...</span>
+                        )}
+                        {'\n'}
+                        {cliOut ? (
+                          <span className="text-husn-text">{cliOut.text || '(no output)'}</span>
+                        ) : !cliBusy && (
+                          <span className="text-husn-text-3 italic">— pick a command and press Run —</span>
+                        )}
+                      </pre>
                     </div>
                   </Card>
                 </Tab>
@@ -1806,10 +1827,16 @@ const Tab = ({ children }: any) => (
 
 const NavLink = ({ icon, label, active, onClick, badge, dot, collapsed }: any) => (
   <button onClick={onClick} title={collapsed ? label : undefined}
-    className={`w-full flex items-center ${collapsed ? 'justify-center px-1 py-2' : 'gap-2.5 px-3 py-2'} rounded-lg text-[9.5px] font-medium uppercase tracking-[0.15em] transition-all relative
+    className={`${collapsed
+      ? 'w-7 h-7 mx-auto flex items-center justify-center'
+      : 'w-full flex items-center gap-2.5 px-3 py-2'} rounded-md text-[9.5px] font-medium uppercase tracking-[0.15em] transition-all relative
       ${active
-        ? 'bg-white/10 text-white border border-white/20 shadow-[inset_0_0_30px_rgba(255,255,255,0.04)]'
-        : 'text-husn-text-3 border border-transparent hover:text-white hover:bg-white/[0.03]'}`}>
+        ? (collapsed
+            ? 'bg-white/10 text-white'
+            : 'bg-white/10 text-white border border-white/20 shadow-[inset_0_0_30px_rgba(255,255,255,0.04)]')
+        : (collapsed
+            ? 'text-husn-text-3 hover:text-white hover:bg-white/[0.04]'
+            : 'text-husn-text-3 border border-transparent hover:text-white hover:bg-white/[0.03]')}`}>
     {/* Smooth active-tab indicator that slides between tabs using framer
         layoutId. Only one instance is rendered at any time, which is what
         triggers the morph animation. */}
@@ -1940,24 +1967,46 @@ const SidebarSparkline = ({ series, blockedCount, lang }: {
 // grouping is still legible without taking a whole row.
 const NavSection = ({ k, title, children, collapsed, open, onToggle, alert, icon }: any) => {
   if (collapsed) {
-    // Collapsed mode: section is identified by a small centered icon
-    // (instead of a horizontal divider line). Hover shows the title as
-    // tooltip. Sections are visually grouped by the spacing around the
-    // icon plus a tiny faded divider underneath it.
+    // Collapsed mode behaves like a file explorer: the SECTION icon is
+    // always visible (clickable, distinct from nav icons by its border
+    // and larger size), but the contents inside only render when the
+    // section is open. This way the sidebar stays short — judges/users
+    // see just the section icons until they click one.
+    //
+    // Visual distinction:
+    //   • Section icon = 36×36 bordered button (white-filled when open)
+    //   • Nav icon     = small icon-only button beneath, no border
     return (
-      <div className="my-1.5 relative">
-        <div className="flex justify-center" title={title}>
-          <span className={`flex items-center justify-center w-7 h-7 rounded-md border transition
-            ${alert
-              ? 'border-husn-danger/40 text-husn-danger bg-husn-danger/5'
-              : 'border-husn-border text-husn-text-3 bg-white/[0.02]'}`}>
-            {icon || <ChevronRight size={12}/>}
-            {alert && (
-              <span className="absolute -top-0.5 right-1 w-1.5 h-1.5 rounded-full bg-husn-danger animate-pulse"/>
-            )}
-          </span>
+      <div className="my-1 relative">
+        <div className="flex justify-center">
+          <button
+            onClick={() => onToggle(k)}
+            title={title + (open ? ' · click to close' : ' · click to open')}
+            className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-all duration-150 relative
+              ${open
+                ? 'bg-white text-black border-white shadow-[0_0_10px_rgba(255,255,255,0.20)]'
+                : alert
+                  ? 'border-husn-danger/45 text-husn-danger bg-husn-danger/5 hover:border-husn-danger/70'
+                  : 'border-husn-border-2 text-husn-text-2 bg-white/[0.02] hover:border-white hover:text-white hover:bg-white/[0.05]'}`}
+          >
+            {icon || <ChevronRight size={14}/>}
+            {/* Tiny indicator dot (top-right) tells you it's a folder/expandable */}
+            <span className={`absolute top-0.5 right-0.5 w-1 h-1 rounded-full transition-colors
+              ${open
+                ? 'bg-husn-success'
+                : alert
+                  ? 'bg-husn-danger animate-pulse'
+                  : 'bg-husn-text-3'}`}/>
+          </button>
         </div>
-        <div className="mt-1 space-y-0.5">{children}</div>
+        {/* Children render ONLY when this section is open. The accordion
+            behavior in toggleNavGroup ensures only one section's items
+            are visible at a time. */}
+        {open && (
+          <div className="mt-1.5 mb-2 space-y-0.5 pt-1 pb-1 border-t border-husn-border">
+            {children}
+          </div>
+        )}
       </div>
     );
   }
@@ -2728,7 +2777,7 @@ const Login = ({ lang, setLang, T, error, onSubmit }: any) => {
           <div className="flex flex-col items-center mb-7">
             <img
               src={lang === 'ar' ? logoAR : logoEN}
-              alt="Husn"
+              alt="Manee"
               className="w-24 h-auto object-contain husn-logo-glow mb-3"
             />
             <div className="text-[10px] text-husn-text-3 uppercase tracking-[0.25em]">{T.tagline}</div>
@@ -2817,7 +2866,7 @@ const Login = ({ lang, setLang, T, error, onSubmit }: any) => {
 
         {/* Subtle footer */}
         <p className="text-center text-[10px] text-husn-text-3 mt-5 uppercase tracking-[0.18em]">
-          {lang === 'en' ? 'Husn · حصن · Defense Grid' : 'حصن · Husn · شبكة الدفاع'}
+          {lang === 'en' ? 'Manee · منيع · Defense Grid' : 'منيع · Manee · شبكة الدفاع'}
         </p>
       </div>
     </div>

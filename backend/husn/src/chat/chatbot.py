@@ -1,6 +1,6 @@
 """SOC Analyst chatbot — uses the shared husn.src.llm client (DeepSeek).
 
-The chatbot has live access to Husn's current state (blocked IPs,
+The chatbot has live access to Manee's current state (blocked IPs,
 sniffer/honeypot status, recent events). On every turn we build a fresh
 system prompt that snapshots the box, plus a per-session history.
 """
@@ -80,8 +80,8 @@ def _snapshot() -> str:
 
 
 def _system_prompt() -> str:
-    return f"""You are Husn's SOC Analyst Assistant — an AI cyber-defense advisor
-embedded inside the Husn (حصن) Intelligent Cyber Defense System.
+    return f"""You are Manee's SOC Analyst Assistant — an AI cyber-defense advisor
+embedded inside the Manee (منيع) Intelligent Cyber Defense System.
 
 Help the operator understand what's happening on the box right now,
 suggest investigation steps, recommend defensive actions (e.g. add to

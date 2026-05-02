@@ -1,8 +1,8 @@
 export const translations: any = {
   en: {
     // Branding
-    title: "Husn",
-    arabicTitle: "حصن",
+    title: "Manee",
+    arabicTitle: "منيع",
     tagline: "Intelligent Cyber Defense System",
 
     // Sidebar / nav
@@ -113,7 +113,7 @@ export const translations: any = {
     signOut: "Sign Out",
     username: "Username",
     password: "Password",
-    loginTitle: "Husn Operator Console",
+    loginTitle: "Manee Operator Console",
     loginSubtitle: "Authenticate to access the cyber-defense dashboard",
     loginFailed: "Invalid username or password",
     loginNetwork: "Cannot reach the backend",
@@ -247,7 +247,7 @@ export const translations: any = {
 
     // Auto Patch
     autoPatch:        "Auto Patch",
-    autoPatchDesc:    "Static analysis + admin-approved remediation across the Husn project tree.",
+    autoPatchDesc:    "Static analysis + admin-approved remediation across the Manee project tree.",
 
     // Login security
     capsLockOn:        "Caps Lock is on",
@@ -298,18 +298,18 @@ export const translations: any = {
       objectives: "Actions on Objectives",
     },
     killChainDescriptions: {
-      recon:      "Adversary scans the perimeter and enumerates services. Husn flags port-scans and probing patterns here.",
+      recon:      "Adversary scans the perimeter and enumerates services. Manee flags port-scans and probing patterns here.",
       weaponize:  "Off-host stage. The attacker pairs an exploit with a payload — invisible to network sensors.",
       deliver:    "Payload delivery: brute-force credentials, malicious uploads, phishing links.",
-      exploit:    "Exploit fires against an exposed service. Husn flags web attack and RCE attempts here.",
-      install:    "Foothold installed: backdoor, web shell, or persistent service. Husn detects the post-exploit traffic.",
+      exploit:    "Exploit fires against an exposed service. Manee flags web attack and RCE attempts here.",
+      install:    "Foothold installed: backdoor, web shell, or persistent service. Manee detects the post-exploit traffic.",
       c2:         "Beaconing back to the operator. Persistent connection patterns from infiltrated hosts land here.",
       objectives: "Impact stage: DDoS, data exfiltration, destructive payloads. Last call to break the chain.",
     },
   },
   ar: {
-    title: "حصن",
-    arabicTitle: "حصن",
+    title: "منيع",
+    arabicTitle: "منيع",
     tagline: "نظام ذكي للدفاع السيبراني",
 
     monitoring: "لوحة التحكم",
@@ -413,7 +413,7 @@ export const translations: any = {
     signOut: "تسجيل الخروج",
     username: "اسم المستخدم",
     password: "كلمة المرور",
-    loginTitle: "لوحة تحكم حصن",
+    loginTitle: "لوحة تحكم منيع",
     loginSubtitle: "سجّل دخولك للوصول إلى لوحة الدفاع السيبراني",
     loginFailed: "اسم المستخدم أو كلمة المرور غير صحيحة",
     loginNetwork: "تعذر الوصول إلى الخادم",
@@ -539,7 +539,7 @@ export const translations: any = {
 
     // Auto Patch
     autoPatch:        "التصحيح التلقائي",
-    autoPatchDesc:    "تحليل ثابت وإصلاحات معتمدة من المسؤول عبر شجرة مشروع حصن.",
+    autoPatchDesc:    "تحليل ثابت وإصلاحات معتمدة من المسؤول عبر شجرة مشروع منيع.",
 
     // Login security
     capsLockOn:        "زر Caps Lock مفعّل",
@@ -590,11 +590,11 @@ export const translations: any = {
       objectives: "تنفيذ الأهداف",
     },
     killChainDescriptions: {
-      recon:      "يقوم المهاجم بمسح المحيط وإحصاء الخدمات. يرصد حصن هنا فحص المنافذ وأنماط الاستكشاف.",
+      recon:      "يقوم المهاجم بمسح المحيط وإحصاء الخدمات. يرصد منيع هنا فحص المنافذ وأنماط الاستكشاف.",
       weaponize:  "مرحلة خارج المضيف. يقوم المهاجم بدمج الثغرة مع الحمولة — غير مرئية لمستشعرات الشبكة.",
       deliver:    "توصيل الحمولة: تخمين كلمات المرور، تحميل ملفات خبيثة، روابط تصيد.",
-      exploit:    "تنفيذ الثغرة ضد خدمة مكشوفة. يرصد حصن هنا الهجمات الويب ومحاولات التنفيذ عن بعد.",
-      install:    "تثبيت موطئ قدم: باب خلفي أو خدمة مستمرة. يكتشف حصن حركة ما بعد الاستغلال.",
+      exploit:    "تنفيذ الثغرة ضد خدمة مكشوفة. يرصد منيع هنا الهجمات الويب ومحاولات التنفيذ عن بعد.",
+      install:    "تثبيت موطئ قدم: باب خلفي أو خدمة مستمرة. يكتشف منيع حركة ما بعد الاستغلال.",
       c2:         "إرسال إشارات للمشغل. تظهر هنا أنماط الاتصالات المستمرة من الأجهزة المخترقة.",
       objectives: "مرحلة الأثر: الحرمان من الخدمة، تسريب البيانات، حمولات تدميرية. آخر فرصة لكسر السلسلة.",
     },

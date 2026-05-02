@@ -174,7 +174,7 @@ def _build_report(data: dict[str, Any]) -> dict[str, str]:
     }, default=str, ensure_ascii=False)
 
     sys = (
-        "You are Husn's SOC reporter. Write a CONCISE executive summary "
+        "You are Manee's SOC reporter. Write a CONCISE executive summary "
         "(under 250 words, both English and Arabic) of the past period's "
         "cyber-defense activity. Use bullet points. Highlight: total events, "
         "top attack classes, top source IPs/countries, AI accuracy if available, "
@@ -204,8 +204,8 @@ def _render_html(window_label: str, data: dict[str, Any], narrative: str) -> str
     return f"""<!doctype html><html><body style="margin:0;background:#0a0e14;font-family:Helvetica,Arial,sans-serif;color:#e6f1ff">
 <table width="720" align="center" cellpadding="0" cellspacing="0" style="background:#0e1520;border:1px solid #1f2a37;border-radius:12px;margin:32px auto">
 <tr><td style="padding:24px 32px;background:linear-gradient(90deg,#0e1520,#102233);border-bottom:1px solid #1f2a37">
-  <div style="font-size:11px;letter-spacing:0.2em;color:#00ff9d;text-transform:uppercase">{org or "Husn Defense"}</div>
-  <div style="font-size:22px;font-weight:600;margin-top:4px">حصن — Periodic Cyber-Defense Report</div>
+  <div style="font-size:11px;letter-spacing:0.2em;color:#00ff9d;text-transform:uppercase">{org or "Manee Defense"}</div>
+  <div style="font-size:22px;font-weight:600;margin-top:4px">منيع — Periodic Cyber-Defense Report</div>
   <div style="font-size:13px;color:#9aa6b2;margin-top:4px">{window_label}</div>
 </td></tr>
 <tr><td style="padding:24px 32px;font-size:14px;line-height:1.6">
@@ -241,7 +241,7 @@ def run_now(triggered_by: str = "manual") -> dict[str, Any]:
     base = out_dir / f"summary-{ts}-{s['frequency']}"
     base.with_suffix(".html").write_text(html, encoding="utf-8")
     base.with_suffix(".md").write_text(
-        f"# Husn — {label}\n\n{rep['narrative']}\n\n---\n```json\n{rep['raw_input']}\n```\n",
+        f"# Manee — {label}\n\n{rep['narrative']}\n\n---\n```json\n{rep['raw_input']}\n```\n",
         encoding="utf-8")
 
     # Email it
@@ -250,7 +250,7 @@ def run_now(triggered_by: str = "manual") -> dict[str, Any]:
         from husn.src.notify import mailer
         if mailer.is_enabled():
             send = mailer.send(
-                subject=f"[Husn] Periodic report · {label}",
+                subject=f"[Manee] Periodic report · {label}",
                 html_body=html,
                 text_body=rep["narrative"],
                 attachments={f"{base.name}.md": Path(base.with_suffix('.md')).read_bytes()},

@@ -2,7 +2,7 @@
 explanation in English and Arabic.
 
 Use cases:
-  * email body — "Husn blocked X because…"
+  * email body — "Manee blocked X because…"
   * dashboard Defense tab — collapsible "why?" row
   * audit log
 
@@ -111,8 +111,8 @@ def explain(
     feats = sorted(feature_importance or [], key=lambda r: abs(r.get("value", 0)), reverse=True)
     top3 = feats[:3]
     if not top3:
-        en = f"Husn blocked {source_ip or 'this IP'} — classified as {_LABEL_NAMES.get(label, {}).get('en', label)} with {confidence*100:.0f}% confidence."
-        ar = f"حظر حصن {source_ip or 'هذا العنوان'} — تم تصنيفه على أنه {_LABEL_NAMES.get(label, {}).get('ar', label)} بثقة {confidence*100:.0f}٪."
+        en = f"Manee blocked {source_ip or 'this IP'} — classified as {_LABEL_NAMES.get(label, {}).get('en', label)} with {confidence*100:.0f}% confidence."
+        ar = f"حظر منيع {source_ip or 'هذا العنوان'} — تم تصنيفه على أنه {_LABEL_NAMES.get(label, {}).get('ar', label)} بثقة {confidence*100:.0f}٪."
         return {"en": en, "ar": ar}
 
     top_name_en, top_desc_en = _feature_phrase(top3[0]["name"], "en")
@@ -123,10 +123,10 @@ def explain(
     label_en = _LABEL_NAMES.get(label, {}).get("en", label)
     label_ar = _LABEL_NAMES.get(label, {}).get("ar", label)
 
-    en = (f"Husn blocked {source_ip or 'this IP'} because the {top_name_en} "
+    en = (f"Manee blocked {source_ip or 'this IP'} because the {top_name_en} "
           f"showed {top_desc_en}, combined with anomalies in {other_en} — "
           f"matching the {label_en} pattern with {confidence*100:.0f}% confidence.")
-    ar = (f"حظر حصن {source_ip or 'هذا العنوان'} لأن {top_name_ar} "
+    ar = (f"حظر منيع {source_ip or 'هذا العنوان'} لأن {top_name_ar} "
           f"أظهر {top_desc_ar}، مع اضطرابات في {other_ar} — "
           f"وهذا يطابق نمط {label_ar} بثقة {confidence*100:.0f}٪.")
     return {"en": en, "ar": ar}

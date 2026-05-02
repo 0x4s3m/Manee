@@ -50,11 +50,11 @@ log = logging.getLogger("husn.api")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     cfg.reload()
-    log.info("Husn config loaded from %s", cfg.loaded_from())
+    log.info("Manee config loaded from %s", cfg.loaded_from())
     # Force the user store to seed if it's empty (first run).
     users.reload()
     seeded = users.list_users()
-    log.info("Husn auth — %d user(s) loaded from %s", len(seeded), users.store_path())
+    log.info("Manee auth — %d user(s) loaded from %s", len(seeded), users.store_path())
     ai.ensure_ready()
     ai.responder.attach_feature_provider(ai.feature_importance)
     auth_ratelimit.attach(responder_provider=lambda: ai.responder, log_provider=_log)
@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI):
     traffic.sampler.stop()
 
 
-app = FastAPI(title="Husn API", lifespan=lifespan)
+app = FastAPI(title="Manee API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -143,7 +143,7 @@ class SetRoleRequest(BaseModel):
 @app.post("/auth/login")
 def auth_login(req: LoginRequest, request: Request):
     """Hardened login: per-IP rate limit + per-user lockout + auto-block on
-    sustained brute force. Husn defends ITSELF using its own pipeline."""
+    sustained brute force. Manee defends ITSELF using its own pipeline."""
     src_ip = (request.client.host if request.client else "unknown") or "unknown"
 
     # 1. IP-level rate limit
@@ -439,7 +439,7 @@ def intel_lookup(ip: str, _: dict = Depends(require_user)):
 
 @app.get("/investigate/{ip}")
 def investigate(ip: str, _: dict = Depends(require_user)):
-    """One-click investigation: aggregate everything Husn knows about an IP
+    """One-click investigation: aggregate everything Manee knows about an IP
     + ask the LLM for a brief situational analysis with recommended action.
     Used by the Defense tab's 'Investigate' button."""
     from husn.src.notify.explanation import explain as nl_explain
@@ -497,7 +497,7 @@ def investigate(ip: str, _: dict = Depends(require_user)):
             "list_status": listed,
         }
         sys = (
-            "You are Husn's SOC analyst. Given the JSON about a single IP, write 4-6 "
+            "You are Manee's SOC analyst. Given the JSON about a single IP, write 4-6 "
             "concise bullet points: (1) what this IP is and where it's from, "
             "(2) what it's done against us, (3) reputation read, "
             "(4) RECOMMENDED ACTION — one of: 'Whitelist', 'Permanent blacklist', "

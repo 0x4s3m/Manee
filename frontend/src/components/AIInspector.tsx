@@ -66,7 +66,11 @@ interface Props {
 }
 
 export default function AIInspector({ packets, lang, T, onInvestigate }: Props) {
-  const [expanded, setExpanded] = useState<number | null>(null);
+  // Track expanded row by a STABLE per-packet key, not by array index.
+  // The backend prepends new entries to the deque every few seconds, so
+  // any index would point at the wrong row after the next poll.
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const rowKey = (p: FlowPacket) => `${p.ts}|${p.src}|${p.sport}|${p.dst}|${p.dport}|${p.proto}`;
 
   if (!packets.length) {
     return (
@@ -118,13 +122,14 @@ export default function AIInspector({ packets, lang, T, onInvestigate }: Props) 
         </div>
 
         <div className="max-h-[58vh] overflow-y-auto divide-y divide-husn-border">
-          {packets.map((p, i) => {
-            const open = expanded === i;
+          {packets.map((p) => {
+            const k = rowKey(p);
+            const open = expandedKey === k;
             const lc = labelColor(p.label, p.is_anomaly);
             return (
-              <div key={`${p.ts}-${p.src}-${p.dport}-${i}`} className="group">
+              <div key={k} className="group">
                 <button
-                  onClick={() => setExpanded(open ? null : i)}
+                  onClick={() => setExpandedKey(open ? null : k)}
                   className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-white/[0.02] transition"
                 >
                   <ChevronRight

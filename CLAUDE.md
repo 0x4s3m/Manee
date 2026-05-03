@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project context
 
-Husn (حصن) is a competition submission for **DefensThon 2026**. It evolved from a single-machine demo into a **deployable server agent**: the same codebase runs as `python run.py both` on a laptop *and* installs to `/opt/husn` with systemd units on a VPS. The on-stage demo plan is to deploy to a public server and run `exploit_demo.py` from a laptop against the live install — judges watch the dashboard, the blocked-IP list, and the email inbox light up in real time.
+**Manee (منيع)** is a competition submission for **DefensThon 2026**. It evolved from a single-machine demo into a **deployable server agent**: the same codebase runs as `python run.py both` on a laptop *and* installs to `/opt/husn` with systemd units on a VPS. The on-stage demo plan is to deploy to a public server and run `exploit_demo.py` from a laptop against the live install — judges watch the dashboard, the blocked-IP list, and the email inbox light up in real time.
+
+> **Naming note:** the user-facing product name is **Manee (منيع)** — that's what appears in the UI title, email subjects, chatbot persona, and judge-facing materials. The repo, Python package (`husn/`), systemd units (`husn-backend`), install path (`/opt/husn`), env-var prefix (`HUSN_*`), and Linux user (`husn`) all still use the old internal name **Husn (حصن)**. Don't rename code paths; do use "Manee" in any new user-facing strings.
 
 The narrative the system must sell is:
 

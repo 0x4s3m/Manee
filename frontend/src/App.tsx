@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import {
   LayoutDashboard, Search, Globe, Play, Eye, Activity,
-  Lock, ChevronRight, Server, Network, ShieldOff, RefreshCw,
-  Mail, Trash2, HardDrive, Wifi, CheckCircle2, XCircle, GitBranch, Clock,
+  Lock, ChevronRight, Server, Network, ShieldOff,
+  Mail, Trash2, HardDrive, Wifi, CheckCircle2, XCircle, Clock,
   Users as UsersIcon, LogOut, UserPlus,
   Cpu, Radio, Sparkles, KeyRound, GitFork, TerminalSquare, Volume2, VolumeX,
   Crosshair, MessageSquare, FileText, X as XClose, Play as PlayIcon,
@@ -13,8 +13,7 @@ import {
 } from 'lucide-react';
 import ForceGraph2D from 'react-force-graph-2d';
 import {
-  AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  Cell,
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
@@ -112,7 +111,9 @@ function App() {
   const [results, setResults] = useState<Vulnerability[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [shapData, setShapData] = useState<any>(null);
-  const [isExplaining, setIsExplaining] = useState(false);
+  // Note: shapData kept (used by Kill Chain visualizer prop). Removed:
+  // isExplaining (xai tab dropped), updateStatus / isCheckingUpdate /
+  // isApplyingUpdate (updates tab dropped).
   const [systemStatus, setSystemStatus] = useState<any>(null);
   const [isToggling, setIsToggling] = useState(false);
 
@@ -128,9 +129,6 @@ function App() {
   const [recipients, setRecipients] = useState<string[]>([]);
   const [smtpEnabled, setSmtpEnabled] = useState(false);
   const [newRecipient, setNewRecipient] = useState('');
-  const [updateStatus, setUpdateStatus] = useState<any>(null);
-  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
-  const [isApplyingUpdate, setIsApplyingUpdate] = useState(false);
   const [audit, setAudit] = useState<{ events: string[]; total: number } | null>(null);
 
   const [userList, setUserList] = useState<any[]>([]);
@@ -284,7 +282,7 @@ function App() {
     if (!token) return;
     const tick = () => {
       fetchHardware(); fetchPorts(); fetchProcs(); fetchBlocked();
-      fetchRecipients(); fetchUpdateStatus(); fetchConnections();
+      fetchRecipients(); fetchConnections();
       fetchDefLists(); fetchNotifyState(); fetchChatStatus();
       fetchReportSched(); fetchReportList();
       if (isAdmin) { fetchUsers(); fetchAudit(); }
@@ -336,7 +334,6 @@ function App() {
   const fetchRecipients = async () => {
     try { const r = await api.get('/recipients'); setRecipients(r.data.recipients); setSmtpEnabled(r.data.smtp_enabled); } catch {}
   };
-  const fetchUpdateStatus = async () => { try { setUpdateStatus((await api.get('/updates/status')).data); } catch {} };
   const fetchAudit = async () => { try { setAudit((await api.get('/auth/audit')).data); } catch {} };
   const fetchSniffer = async () => { try { setSnifferStatus((await api.get('/sniffer/status')).data); } catch {} };
   const fetchHoneypot = async () => { try { setHoneypotStatus((await api.get('/honeypot/status')).data); } catch {} };
@@ -446,7 +443,11 @@ function App() {
       }, 800);
     } catch { addLog(`[ERR] backend offline`); setIsScanning(false); }
   };
-  const fetchExplanation = async () => { setIsExplaining(true); try { setShapData((await api.get('/explain')).data); } catch {} setIsExplaining(false); };
+  // Run SHAP once on mount so the Kill Chain visualizer has feature data
+  // to surface. (The xai tab that displayed the bar chart was removed.)
+  const fetchExplanation = async () => { try { setShapData((await api.get('/explain')).data); } catch {} };
+  useEffect(() => { if (token) fetchExplanation(); /* eslint-disable-next-line */ }, [token]);
+
   const unblockIp = async (ip: string) => {
     try { await api.post(`/blocked/${encodeURIComponent(ip)}/unblock`); fetchBlocked(); addLog(`UNBLOCK: ${ip}`); } catch {}
   };
@@ -467,18 +468,6 @@ function App() {
   const removeRecipient = async (email: string) => {
     try { await api.delete(`/recipients/${encodeURIComponent(email)}`); fetchRecipients(); } catch {}
   };
-  const checkForUpdate = async () => {
-    setIsCheckingUpdate(true);
-    try { await api.post('/updates/check'); await fetchUpdateStatus(); addLog('UPDATER: check'); } catch {}
-    setIsCheckingUpdate(false);
-  };
-  const applyUpdate = async () => {
-    setIsApplyingUpdate(true);
-    try { const r = await api.post('/updates/apply'); addLog(`UPDATER: ${r.data?.message || 'apply done'}`); await fetchUpdateStatus(); }
-    catch { addLog('[ERR] apply failed'); }
-    setIsApplyingUpdate(false);
-  };
-
   const login = async (u: string, p: string) => {
     setAuthError(null);
     try {
@@ -619,19 +608,16 @@ function App() {
             collapsed={effectiveCollapsed} open={navOpen.telemetry} onToggle={toggleNavGroup}>
             <NavLink icon={<Server size={16}/>} label={T.host} collapsed={effectiveCollapsed} active={activeTab === 'host'} onClick={() => setActiveTab('host')}/>
             <NavLink icon={<Network size={16}/>} label={T.network} collapsed={effectiveCollapsed} active={activeTab === 'network'} onClick={() => setActiveTab('network')}/>
-            <NavLink icon={<Radio size={16}/>} label={T.connections || 'Connections'} collapsed={effectiveCollapsed} active={activeTab === 'connections'} onClick={() => setActiveTab('connections')}
+            <NavLink icon={<GitFork size={16}/>} label={T.topology} collapsed={effectiveCollapsed} active={activeTab === 'topology'} onClick={() => setActiveTab('topology')}
               badge={connections?.total > 0 ? connections.total : undefined}/>
-            <NavLink icon={<GitFork size={16}/>} label={T.topology} collapsed={effectiveCollapsed} active={activeTab === 'topology'} onClick={() => setActiveTab('topology')}/>
           </NavSection>
 
           {/* DEFENSE */}
           <NavSection k="detect" title={T.navGroupDetect} alert={blocked.length > 0}
             icon={<ShieldHalf size={14}/>}
             collapsed={effectiveCollapsed} open={navOpen.detect} onToggle={toggleNavGroup}>
-            <NavLink icon={<Search size={16}/>} label={T.detection} collapsed={effectiveCollapsed} active={activeTab === 'recon'} onClick={() => setActiveTab('recon')}/>
             <NavLink icon={<Eye size={16}/>} label={T.aiInspector} collapsed={effectiveCollapsed} active={activeTab === 'ai-inspect'} onClick={() => setActiveTab('ai-inspect')}
               dot={(snifferStatus?.recent_packets?.length ?? 0) > 0}/>
-            <NavLink icon={<Eye size={16}/>} label={T.explainableAI} collapsed={effectiveCollapsed} active={activeTab === 'xai'} onClick={() => setActiveTab('xai')}/>
             <NavLink icon={<ShieldOff size={16}/>} label={T.defense} collapsed={effectiveCollapsed} active={activeTab === 'defense'} onClick={() => setActiveTab('defense')}
               badge={blocked.length > 0 ? blocked.length : undefined}/>
             <NavLink icon={<Crosshair size={16}/>} label={T.honeypot} collapsed={effectiveCollapsed} active={activeTab === 'honeypot'} onClick={() => setActiveTab('honeypot')}
@@ -653,8 +639,6 @@ function App() {
               icon={<Cog size={14}/>}
               collapsed={effectiveCollapsed} open={navOpen.admin} onToggle={toggleNavGroup}>
               <NavLink icon={<Wrench size={16}/>} label={T.autoPatch} collapsed={effectiveCollapsed} active={activeTab === 'autopatch'} onClick={() => setActiveTab('autopatch')}/>
-              <NavLink icon={<RefreshCw size={16}/>} label={T.updates} collapsed={effectiveCollapsed} active={activeTab === 'updates'} onClick={() => setActiveTab('updates')}
-                dot={updateStatus?.last_check?.available}/>
               <NavLink icon={<TerminalSquare size={16}/>} label={T.terminal} collapsed={effectiveCollapsed} active={activeTab === 'terminal'} onClick={() => setActiveTab('terminal')}/>
               <NavLink icon={<UsersIcon size={16}/>} label={T.users} collapsed={effectiveCollapsed} active={activeTab === 'users'} onClick={() => setActiveTab('users')}/>
             </NavSection>
@@ -1062,126 +1046,6 @@ function App() {
                 </Tab>
               )}
 
-              {activeTab === 'connections' && (
-                <Tab k="connections">
-                  <div className="grid grid-cols-3 gap-4">
-                    <Kpi label={T.totalConnections || 'Established'} value={fmtNum(connections?.total ?? 0)} sub="" icon={<Radio size={16}/>}/>
-                    <Kpi label={T.uniqueRemotes || 'Unique remotes'} value={fmtNum(connections?.by_remote?.length ?? 0)} sub="" icon={<Globe size={16}/>}/>
-                    <Kpi label={T.topProcesses || 'Top process'} value={connections?.top_processes?.[0]?.process || '—'}
-                      sub={`${connections?.top_processes?.[0]?.count ?? 0} conn`} icon={<Cpu size={16}/>}/>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <Card title={T.byRemote || 'By remote IP'} icon={<Globe size={14}/>}>
-                      <Tbl headers={[T.sourceIp, T.connections, T.service, T.process]} rows={
-                        (connections?.by_remote || []).slice(0, 12).map((r: any) => [
-                          <span className="font-mono text-white">{r.remote_ip}</span>,
-                          <span className="font-medium">{r.count}</span>,
-                          <span className="text-husn-text-2">{r.services.slice(0, 2).join(', ')}</span>,
-                          <span className="text-husn-text-3 truncate max-w-[140px] inline-block">{r.processes.slice(0, 2).join(', ') || '—'}</span>,
-                        ])
-                      }/>
-                    </Card>
-                    <Card title={T.topProcesses || 'Top processes'} icon={<Cpu size={14}/>}>
-                      <Tbl headers={[T.process, T.connections, T.uniqueRemotes || 'Remotes']} rows={
-                        (connections?.top_processes || []).map((p: any) => [
-                          <span className="text-white">{p.process}</span>,
-                          <span className="font-medium">{p.count}</span>,
-                          <span className="text-husn-text-3 text-[11px]">{p.remotes.length}</span>,
-                        ])
-                      }/>
-                    </Card>
-                  </div>
-
-                  <div className="mt-4">
-                    <Card title={T.allEstablished || 'All established'} icon={<Network size={14}/>}>
-                      <Tbl headers={['Local', 'Remote', T.service, T.process]} rows={
-                        (connections?.established || []).slice(0, 30).map((r: any, i: number) => [
-                          <span className="text-husn-text-3 font-mono text-[11px]" key={'l' + i}>{r.local}</span>,
-                          <span className="text-white font-mono text-[11px]" key={'r' + i}>{r.remote}</span>,
-                          <span className="text-husn-text-2" key={'s' + i}>{r.service}</span>,
-                          <span className="text-husn-text-3" key={'p' + i}>{r.process || '—'}</span>,
-                        ])
-                      }/>
-                    </Card>
-                  </div>
-                </Tab>
-              )}
-
-              {activeTab === 'recon' && (
-                <Tab k="recon">
-                  <Card title={T.detection} icon={<Search size={14}/>}>
-                    <p className="text-sm text-husn-text-2 mb-4">
-                      {lang === 'en' ? 'Type a target IP in the search bar above and run a network scan against it.' : 'اكتب IP الهدف في شريط البحث أعلاه وابدأ الفحص.'}
-                    </p>
-                    {results.length > 0 && (
-                      <div className="space-y-2">
-                        {results.map((v) => (
-                          <div key={v.id} className="flex items-center justify-between px-4 py-3 rounded-lg border border-husn-border">
-                            <div className="flex items-center gap-3">
-                              <SeverityPill sev={v.severity} T={T}/>
-                              <div>
-                                <div className="text-sm text-white font-medium">{v.name}</div>
-                                <div className="text-[11px] text-husn-text-3">{v.description}</div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </Card>
-                </Tab>
-              )}
-
-              {activeTab === 'xai' && (
-                <Tab k="xai">
-                  <div className="flex justify-between items-center mb-2">
-                    <div>
-                      <h3 className="text-[14px] font-light uppercase tracking-[0.18em] text-white">{T.explainableAI}</h3>
-                      <p className="text-husn-text-3 text-xs mt-0.5">XGBoost feature contribution analysis</p>
-                    </div>
-                    <button onClick={fetchExplanation} disabled={isExplaining} className="husn-btn-primary text-sm">
-                      {isExplaining ? T.analyzing || 'Analyzing...' : T.runShap || 'Run SHAP'}
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 mt-3">
-                    <div className="col-span-2 husn-card p-5 min-h-[420px]">
-                      {shapData ? (
-                        <ResponsiveContainer width="100%" height={400}>
-                          <BarChart data={shapData.features} layout="vertical" margin={{ left: 30, right: 20 }}>
-                            <XAxis type="number" hide/>
-                            <YAxis dataKey="name" type="category" stroke="#5c6473" fontSize={11} width={130}
-                              tickFormatter={(v) => v}
-                              orientation={lang === 'ar' ? 'right' : 'left'}/>
-                            <Tooltip cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-                              contentStyle={{ backgroundColor: '#0a0e18', border: '1px solid #2a3142', borderRadius: 8 }}/>
-                            <Bar dataKey="value" radius={[0, 6, 6, 0]}>
-                              {shapData.features.map((e: any, i: number) => (
-                                <Cell key={i} fill={e.value > 0 ? '#ffffff' : '#5c6473'}/>
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-husn-text-3">
-                          <Eye size={36} className="opacity-30 mb-3"/>
-                          <p className="text-sm">{T.shapEmpty || 'Run SHAP to view weights'}</p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-3">
-                      <div className="husn-card p-5">
-                        <h4 className="text-[13px] font-medium text-white mb-3">{T.legend || 'Legend'}</h4>
-                        <div className="space-y-2 text-[12px] text-husn-text-2 leading-relaxed">
-                          <p><span className="inline-block w-3 h-3 bg-white rounded-sm mr-2 align-middle"/>{T.legendPos || 'Increased threat probability'}</p>
-                          <p><span className="inline-block w-3 h-3 bg-husn-text-3 rounded-sm mr-2 align-middle"/>{T.legendNeg || 'Indicator of legitimate behavior'}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </Tab>
-              )}
-
               {activeTab === 'defense' && (
                 <Tab k="defense">
                   <div className="flex justify-between items-center mb-1">
@@ -1368,60 +1232,6 @@ function App() {
                       </Card>
                     </div>
                   )}
-                </Tab>
-              )}
-
-              {activeTab === 'updates' && (
-                <Tab k="updates">
-                  <div className="flex justify-between items-center mb-2">
-                    <div>
-                      <h3 className="text-[14px] font-light uppercase tracking-[0.18em] text-white">{T.updates}</h3>
-                      <p className="text-husn-text-3 text-xs mt-0.5">
-                        {lang === 'en' ? `Auto-check every ${updateStatus?.interval_minutes ?? 5} min` : `فحص كل ${updateStatus?.interval_minutes ?? 5} دقائق`}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button onClick={checkForUpdate} disabled={isCheckingUpdate || !isAdmin}
-                        className="husn-btn-ghost text-sm flex items-center gap-2">
-                        <RefreshCw size={14} className={isCheckingUpdate ? 'animate-spin' : ''}/> {T.checkNow}
-                      </button>
-                      <button onClick={applyUpdate} disabled={isApplyingUpdate || !updateStatus?.last_check?.available || !isAdmin}
-                        className="husn-btn-primary text-sm">{T.applyUpdate}</button>
-                    </div>
-                  </div>
-
-                  <Card title={T.updaterStatus} icon={<GitBranch size={14}/>}>
-                    <div className="grid grid-cols-2 gap-x-12 gap-y-2 text-sm">
-                      <KV k={T.lastChecked} v={updateStatus?.last_check?.checked_at ? new Date(updateStatus.last_check.checked_at * 1000).toLocaleString() : '—'}/>
-                      <KV k={T.repo} v={updateStatus?.repo_url || '—'}/>
-                      <KV k={T.branch} v={updateStatus?.branch || 'main'}/>
-                      <KV k={T.autoApply} v={updateStatus?.auto_apply ? T.yes : T.no}/>
-                      <KV k={T.behind} v={updateStatus?.last_check?.behind ?? 0}/>
-                      <KV k={T.ahead} v={updateStatus?.last_check?.ahead ?? 0}/>
-                      <KV k="HEAD" v={updateStatus?.last_check?.current_commit || '—'}/>
-                      <KV k="origin" v={updateStatus?.last_check?.remote_commit || '—'}/>
-                    </div>
-                    <div className={`mt-5 px-4 py-3 rounded-lg text-sm text-center
-                      ${updateStatus?.last_check?.available ? 'bg-husn-warn/10 text-husn-warn border border-husn-warn/30' : 'bg-husn-success/10 text-husn-success border border-husn-success/30'}`}>
-                      {updateStatus?.last_check?.message || T.upToDate}
-                    </div>
-                  </Card>
-
-                  <div className="mt-4">
-                    <Card title={T.history} icon={<Clock size={14}/>}>
-                      <div className="space-y-1 max-h-72 overflow-y-auto">
-                        {(updateStatus?.history || []).slice(0, 15).map((h: any, i: number) => (
-                          <div key={i} className="flex items-center gap-3 text-[12px] py-2 px-2 rounded hover:bg-white/[0.03]">
-                            {h.ok ? <CheckCircle2 size={12} className="text-husn-success shrink-0"/> : <XCircle size={12} className="text-husn-danger shrink-0"/>}
-                            <span className="text-husn-text-3 font-mono shrink-0">{h.ts_iso}</span>
-                            <span className="text-white font-medium uppercase text-[10px] shrink-0">{h.action}</span>
-                            <span className="text-husn-text-2 truncate">{h.message}</span>
-                          </div>
-                        ))}
-                        {!(updateStatus?.history || []).length && <p className="text-[12px] text-husn-text-3 py-2">— no entries yet —</p>}
-                      </div>
-                    </Card>
-                  </div>
                 </Tab>
               )}
 
@@ -1817,6 +1627,7 @@ const tabTitle = (t: string, T: any) => ({
   'kill-chain': T.killChain,
   'ai-inspect': T.aiInspector,
   autopatch: T.autoPatch,
+  // Removed: connections, recon, xai, updates — folded or dropped from UI.
 }[t] || 'Dashboard');
 
 const Tab = ({ children }: any) => (

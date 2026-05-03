@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Husn (حصن) — production server installer.
+# Manee (منيع) — production server installer.
 #
 # Installs to /opt/husn, creates a `husn` system user, drops a config
 # template at /etc/husn/config.yml, registers systemd units, and (optionally)
 # emits an nginx site for $DOMAIN.
+#
+# (The on-disk path and service-user name remain `husn` for upgrade
+# compatibility with installs predating the rename. Only display text
+# changes from "Husn" → "Manee".)
 #
 # Tested on: Ubuntu 22.04+, Debian 12+, Kali, Rocky/Alma 9+.
 # Run as root:  sudo ./install.sh
@@ -26,7 +30,7 @@ WITH_NGINX="${HUSN_WITH_NGINX:-no}"
 
 echo
 echo "  ╭─────────────────────────────────────────╮"
-echo "  │   Husn (حصن) — Server Installer         │"
+echo "  │   Manee (منيع) — Server Installer       │"
 echo "  ╰─────────────────────────────────────────╯"
 echo
 echo "  Repo:    $REPO_ROOT"
@@ -161,7 +165,7 @@ fi
 # ---------- done
 echo
 echo "  ╭─────────────────────────────────────────╮"
-echo "  │   ✓ Husn installed.                     │"
+echo "  │   ✓ Manee installed.                    │"
 echo "  ╰─────────────────────────────────────────╯"
 echo
 echo "  Edit:    sudo nano $CONFIG_DIR/config.yml"

@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Husn (حصن) - Universal Setup Script
+# Manee (منيع) - Universal Setup Script
 # Target OS: Kali Linux, Ubuntu, Debian, CentOS, RHEL
 
 set -e
 
-echo "🛡️ Starting Husn (حصن) Universal Setup..."
+echo "🛡️ Starting Manee (منيع) Universal Setup..."
 
 # Function to detect OS
 detect_os() {
@@ -68,5 +68,5 @@ else
     echo "⚠️ Could not find python3 to set capabilities. Scapy might require sudo."
 fi
 
-echo "✅ Husn Setup Complete!"
+echo "✅ Manee Setup Complete!"
 echo "To start the system, run: python3 run.py both"

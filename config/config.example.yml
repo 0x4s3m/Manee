@@ -22,10 +22,31 @@ smtp:
   port: 465
   use_tls: false                       # STARTTLS (port 587 path)
   use_ssl: true                        # full SSL (port 465 path) — Hostinger uses this
-  user: husn@build-aura.com
+  user: manee@build-aura.com
   password_env: HUSN_SMTP_PASSWORD     # read from env var, never inline the password
-  from_addr: "Manee Defender <Manee@build-aura.com>"
+  from_addr: "Manee Defender <manee@build-aura.com>"
   timeout_seconds: 15
+
+# IMAP-driven SOC helper. When enabled, Manee polls the inbox for emails
+# sent to its address and replies with a DeepSeek-powered SOC analyst
+# response. Senders can also include slash commands (/whitelist <ip>,
+# /block <ip>, /status, /investigate <ip>, etc) and Manee will execute
+# them. See husn/src/notify/inbox.py for the full command list.
+#
+# CRITICAL: only addresses in `allowed_senders` (PLUS the recipients
+# list above) can drive Manee. Everyone else is silently dropped —
+# this prevents the SOC helper from becoming a remote-control backdoor
+# for anyone who emails the address. Empty allowlist = nobody gets
+# replies (fail closed).
+inbox:
+  enabled: true
+  imap_host: imap.hostinger.com
+  imap_port: 993
+  folder: INBOX
+  interval_seconds: 90                 # how often to poll for new mail
+  max_per_poll: 10                     # cap per cycle so a flood can't DOS us
+  allowed_senders:
+    - t.m.j.a.r3@gmail.com             # add your team's emails here
 
 # Who receives incident reports. The dashboard /recipients endpoint can mutate
 # this list at runtime; the file is the seed.

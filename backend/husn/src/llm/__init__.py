@@ -83,7 +83,12 @@ def complete(
         return {"ok": False, "reply": "", "error": "openai SDK not installed"}
 
     try:
-        client = OpenAI(api_key=api_key(), base_url=base_url())
+        # 75s timeout — long enough for DeepSeek's slow code-reasoning
+        # responses (~10-30s typical), short enough that the backend
+        # never hangs an HTTP worker waiting for a stuck upstream call.
+        # The frontend's axios timeout is 90s, so the backend will fail
+        # first and return a clean error rather than a connection drop.
+        client = OpenAI(api_key=api_key(), base_url=base_url(), timeout=75.0)
         resp = client.chat.completions.create(
             model=model(),
             max_tokens=max_tokens_override or max_tokens(),

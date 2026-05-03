@@ -37,7 +37,7 @@ from husn.src.core import lists as defense_lists
 from husn.src.honeypot.server import honeypot
 from husn.src.intel import geoip, reputation
 from husn.src.learning import store as learning_store, trainer as learning_trainer
-from husn.src.notify import mailer, report, settings as notify_settings, auto_reports
+from husn.src.notify import mailer, report, settings as notify_settings, auto_reports, inbox
 from husn.src.sniffer.sniffer import sniffer
 from husn.src.system import hardware, network, processes, scanner
 from husn.src.system import traffic
@@ -72,7 +72,9 @@ async def lifespan(app: FastAPI):
     honeypot.start(responder_provider=lambda: ai.responder)
     updater.start_scheduler()
     auto_reports.start_scheduler()
+    inbox.start_scheduler()
     yield
+    inbox.stop_scheduler()
     auto_reports.stop_scheduler()
     updater.stop_scheduler()
     honeypot.stop()
@@ -1027,6 +1029,21 @@ def autopatch_backup_delete(filename: str, actor: dict = Depends(require_admin))
     if res.get("ok"):
         _log(f"AUTOPATCH: {actor['username']} deleted backup {filename}")
     return res
+
+
+@app.post("/inbox/poll")
+def inbox_poll(actor: dict = Depends(require_admin)):
+    """Trigger a one-shot inbox poll. Useful for testing without waiting
+    for the next scheduled tick."""
+    res = inbox.poll_and_reply()
+    if res.get("ok"):
+        _log(f"INBOX: {actor['username']} triggered poll → {res.get('processed_count', 0)} replied, {res.get('failed_count', 0)} failed")
+    return res
+
+
+@app.get("/inbox/status")
+def inbox_status(_: dict = Depends(require_user)):
+    return {"enabled": inbox.is_enabled()}
 
 
 @app.get("/autopatch/backups/{filename}/download")

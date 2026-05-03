@@ -27,7 +27,10 @@ type Blocked = {
   confidence: number;
 };
 
-type ShapFeature = { feature: string; importance: number };
+// Backend (/explain) returns this shape: see ai/model.py feature_importance().
+// Older drafts of this file used {feature, importance} which crashed the
+// component (undefined.slice → blank screen) the moment the API responded.
+type ShapFeature = { name: string; value: number };
 
 interface Props {
   blocked: Blocked[];
@@ -114,7 +117,8 @@ export default function KillChainVisualizer({
   // signal the model relied on for that wave of attacks.
   const topFeature = useMemo(() => {
     const f = shap?.features?.[0];
-    return f ? { name: f.feature, importance: f.importance } : null;
+    if (!f || typeof f.name !== 'string') return null;
+    return { name: f.name, importance: Number(f.value) || 0 };
   }, [shap]);
 
   return (
@@ -134,9 +138,9 @@ export default function KillChainVisualizer({
         />
         <KpiCard
           label={lang === 'en' ? 'Top SHAP feature' : 'أهم ميزة SHAP'}
-          value={topFeature ? topFeature.name.slice(0, 14) : '—'}
+          value={topFeature && topFeature.name ? String(topFeature.name).slice(0, 14) : '—'}
           sub={topFeature
-            ? `${(topFeature.importance * 100).toFixed(1)}%`
+            ? `${((topFeature.importance ?? 0) * 100).toFixed(1)}%`
             : (lang === 'en' ? 'awaiting data' : 'بانتظار البيانات')}
         />
       </div>
@@ -356,7 +360,7 @@ function StageDetail({ stage, items, topFeature, lang, T, onClose, onInvestigate
               </p>
               <p className="text-white text-[12px] mt-1">{topFeature.name}</p>
               <p className="text-husn-text-3 text-[10px] tracking-normal">
-                SHAP {(topFeature.importance * 100).toFixed(1)}%
+                SHAP {((topFeature.importance ?? 0) * 100).toFixed(1)}%
               </p>
             </div>
           )}

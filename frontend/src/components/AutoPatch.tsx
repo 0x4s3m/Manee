@@ -313,8 +313,13 @@ export default function AutoPatch({ api, isAdmin, T: _T, lang, addLog }: Props) 
 
   const askLLM = async (id: string) => {
     setBusyId(id);
+    setActionMsg((m) => ({ ...m, [id]: lang === 'en' ? '… asking the LLM (can take ~15s)' : '... جاري الاستشارة (قد يستغرق ٬١٥ ث)' }));
     try {
-      const r = await api.post('/autopatch/llm-suggest', { issue_id: id });
+      // Explicit 90s timeout — DeepSeek code calls take 10-30s with the
+      // project-context prompt we send. Without a timeout, axios reports
+      // a generic "network error" when the browser / tunnel / proxy
+      // gives up partway through.
+      const r = await api.post('/autopatch/llm-suggest', { issue_id: id }, { timeout: 90000 });
       if (r.data?.ok && r.data.suggestion) {
         setLlmSuggestion((m) => ({ ...m, [id]: r.data.suggestion }));
         setManualText((m) => ({ ...m, [id]: m[id] || r.data.suggestion }));
@@ -325,7 +330,26 @@ export default function AutoPatch({ api, isAdmin, T: _T, lang, addLog }: Props) 
       }
       await fetchHistory();
     } catch (e: any) {
-      setActionMsg((m) => ({ ...m, [id]: `✗ ${e?.message}` }));
+      // Translate axios error codes into something the operator can act on.
+      let msg: string;
+      if (e?.code === 'ECONNABORTED' || /timeout/i.test(e?.message || '')) {
+        msg = lang === 'en'
+          ? '✗ LLM timed out (90s). DeepSeek may be busy — try again, or check journalctl -u husn-backend.'
+          : '✗ انتهت مهلة الذكاء (٩٠ث). حاول مجدداً.';
+      } else if (e?.response?.status === 401) {
+        msg = lang === 'en' ? '✗ session expired — re-login' : '✗ انتهت الجلسة — أعد الدخول';
+      } else if (e?.response?.status === 403) {
+        msg = lang === 'en' ? '✗ admin only' : '✗ للمسؤول فقط';
+      } else if (e?.response?.data?.error || e?.response?.data?.detail) {
+        msg = `✗ ${e.response.data.error || e.response.data.detail}`;
+      } else if (e?.message === 'Network Error' || !e?.response) {
+        msg = lang === 'en'
+          ? '✗ no response from backend — backend may be restarting, check journalctl -u husn-backend'
+          : '✗ لا توجد استجابة من الخادم';
+      } else {
+        msg = `✗ ${e?.message || 'unknown error'}`;
+      }
+      setActionMsg((m) => ({ ...m, [id]: msg }));
     }
     setBusyId(null);
   };

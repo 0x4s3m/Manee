@@ -533,10 +533,6 @@ function App() {
           }}
         />
       )}
-      {/* Build marker — confirm you have the latest code. Remove before contest. */}
-      <div className="fixed bottom-2 right-3 text-[10px] text-husn-text-3 font-mono pointer-events-none z-50 opacity-60">
-        husn-ui · scroll-fix-v3
-      </div>
       {/* Mobile drawer backdrop — shown only when the sidebar is open on a
           mobile viewport. Click to dismiss. */}
       {isMobile && drawerOpen && (
@@ -690,21 +686,9 @@ function App() {
           </div>
         )}
 
-        {/* Footer — language + collapse toggle in one tight row */}
-        <div className={`border-t border-husn-border ${effectiveCollapsed ? 'p-2 flex-col gap-1.5' : 'px-3 py-2.5 justify-between'} flex items-center`}>
-          {!effectiveCollapsed && (
-            <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] uppercase tracking-[0.14em] text-husn-text-3 hover:text-white hover:bg-white/[0.04] transition">
-              <Globe size={11}/> {lang === 'en' ? 'العربية' : 'English'}
-            </button>
-          )}
-          {effectiveCollapsed && (
-            <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
-              title={lang === 'en' ? 'العربية' : 'English'}
-              className="p-1.5 rounded-md text-husn-text-3 hover:text-white hover:bg-white/[0.04] transition">
-              <Globe size={14}/>
-            </button>
-          )}
+        {/* Footer — collapse toggle only. Language switcher lives in
+            the header now (next to the mute button). */}
+        <div className={`border-t border-husn-border ${effectiveCollapsed ? 'p-2 justify-center' : 'px-3 py-2.5 justify-end'} flex items-center`}>
           {/* The collapse toggle is hidden on tablet (auto-collapsed) and
               on mobile (drawer mode). It's a desktop-only control. */}
           {!isMobile && !isTablet && (
@@ -755,6 +739,13 @@ function App() {
           <button onClick={toggleAudio} title={audioOn ? T.audioOn : T.audioOff}
             className={`p-2 rounded-lg border transition shrink-0 ${audioOn ? 'border-husn-border-2 text-white bg-white/[0.04]' : 'border-husn-border text-husn-text-3 hover:text-white'}`}>
             {audioOn ? <Volume2 size={14}/> : <VolumeX size={14}/>}
+          </button>
+          {/* language toggle — sits right of mute, same styling */}
+          <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
+            title={lang === 'en' ? 'العربية' : 'English'}
+            className="p-2 rounded-lg border border-husn-border text-husn-text-2 hover:text-white hover:border-husn-border-2 transition shrink-0 flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.10em] uppercase">
+            <Globe size={14}/>
+            <span className="hidden sm:inline">{lang === 'en' ? 'AR' : 'EN'}</span>
           </button>
           <div className={`flex items-center gap-2 sm:gap-3 ${lang === 'ar' ? 'mr-1 sm:mr-2' : 'ml-1 sm:ml-2'} px-1 sm:px-2 shrink-0`}>
             {!isMobile && (
@@ -1244,11 +1235,12 @@ function App() {
                       sub={blocked.length ? 'red nodes' : 'none'} icon={<ShieldOff size={16}/>}
                       highlight={blocked.length > 0}/>
                   </div>
-                  <div className="husn-card p-2" style={{ height: 'calc(100vh - 280px)' }}>
+                  <div className="husn-card p-1.5 flex-1" style={{ minHeight: '60vh', height: 'calc(100vh - 260px)' }}>
                     <TopologyGraph
                       hostLabel={hwSnapshot?.os?.hostname || 'host'}
                       remotes={connections?.by_remote || []}
                       blocked={blocked}
+                      onInvestigate={investigate}
                     />
                   </div>
                 </Tab>
@@ -2068,19 +2060,85 @@ const ReputationPill = ({ rep }: { rep?: any }) => {
 
 // ---------- Topology graph (force-directed, react-force-graph-2d)
 
-const TopologyGraph = ({ hostLabel, remotes, blocked }: any) => {
+const TopologyGraph = ({ hostLabel, remotes, blocked, onInvestigate }: any) => {
   const fgRef = useRef<any>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  // Track container size so the force graph fills it on every resize/zoom
+  // change. The library doesn't auto-respond to flex parents otherwise.
+  const [size, setSize] = useState({ w: 600, h: 400 });
+  // Selected node opens an inline detail drawer.
+  const [selectedNode, setSelectedNode] = useState<any | null>(null);
+  // Pulse phase advances every frame so we can draw a breathing host glow.
+  const pulse = useRef<number>(0);
+  // One-shot guard: zoomToFit only fires on the very first settle.
+  const didInitialFit = useRef<boolean>(false);
 
-  // Build nodes/links from real data. Host in the centre; every unique remote
-  // IP becomes a satellite. Blocked IPs that aren't currently connected are
-  // also rendered as red satellites so the graph shows recent attackers too.
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      setSize({ w: el.clientWidth, h: el.clientHeight });
+    });
+    ro.observe(el);
+    setSize({ w: el.clientWidth, h: el.clientHeight });
+    return () => ro.disconnect();
+  }, []);
+
+  // Drive the pulse + force a redraw. Throttled to ~12 fps and paused
+  // when the browser tab isn't visible (no point burning CPU paints when
+  // nobody's watching). Also skipped if the topology card itself is
+  // off-screen — a single IntersectionObserver flips the gate.
+  const visible = useRef<boolean>(true);
+  useEffect(() => {
+    const onVis = () => { visible.current = !document.hidden; };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => { visible.current = entry.isIntersecting && !document.hidden; });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (!visible.current) return;
+      pulse.current = (pulse.current + 0.10) % (Math.PI * 2);
+      try { fgRef.current?.refresh?.(); } catch {}
+    }, 80);   // ~12 fps — plenty for a breathing pulse
+    return () => window.clearInterval(id);
+  }, []);
+
+  // The dashboard polls every 2s, which gives us a brand-new `remotes`
+  // and `blocked` array reference each tick — even when the contents
+  // are identical. If we feed those straight into useMemo, the
+  // returned `data` object is also new every tick, ForceGraph2D sees a
+  // new graphData prop, and re-runs its physics initialisation → the
+  // visible "lag and reload" the user reported.
+  //
+  // Fix: compute a stable signature from the inputs. useMemo keys off
+  // the SIGNATURE, not the array references — so `data` stays the same
+  // object across polls until something meaningful changes.
+  const dataSig = useMemo(() => {
+    const rSig = (remotes || [])
+      .map((x: any) => `${x.remote_ip}|${x.count || 0}|${x.geo?.country_code || ''}`)
+      .sort()
+      .join(',');
+    const bSig = (blocked || [])
+      .map((x: any) => `${x.ip}|${x.attack_type || ''}`)
+      .sort()
+      .join(',');
+    return `${hostLabel || ''}::${rSig}::${bSig}`;
+  }, [hostLabel, remotes, blocked]);
+
   const data = useMemo(() => {
     const nodes: any[] = [{
       id: '__host__', name: hostLabel || 'host', type: 'host',
-      val: 18, color: '#ffffff',
+      val: 16, color: '#ffffff',
     }];
     const links: any[] = [];
-    const blockedSet = new Set(blocked.map((b: any) => b.ip));
+    const blockedSet = new Set((blocked || []).map((b: any) => b.ip));
     const seen = new Set<string>();
 
     for (const r of remotes || []) {
@@ -2091,15 +2149,16 @@ const TopologyGraph = ({ hostLabel, remotes, blocked }: any) => {
         id: r.remote_ip,
         name: r.remote_ip,
         country: r.geo?.country, flag: r.geo?.flag,
-        val: Math.min(2 + Math.log2(1 + (r.count || 1)) * 2, 14),
-        color: isBlocked ? '#ef4444' : (r.geo?.country_code === 'SA' ? '#10b981' : '#8b919e'),
+        val: Math.min(3 + Math.log2(1 + (r.count || 1)) * 2, 14),
+        color: isBlocked ? '#f43f5e' : (r.geo?.country_code === 'SA' ? '#10b981' : '#a1a1aa'),
         blocked: isBlocked,
         count: r.count,
       });
       links.push({
         source: '__host__', target: r.remote_ip,
-        width: Math.min(1 + Math.log2(1 + (r.count || 1)), 4),
-        color: isBlocked ? 'rgba(239,68,68,0.55)' : 'rgba(255,255,255,0.18)',
+        width: Math.min(1 + Math.log2(1 + (r.count || 1)), 3),
+        color: isBlocked ? 'rgba(244,63,94,0.55)' : 'rgba(255,255,255,0.18)',
+        attack: isBlocked,
       });
     }
     for (const b of blocked || []) {
@@ -2108,51 +2167,329 @@ const TopologyGraph = ({ hostLabel, remotes, blocked }: any) => {
       nodes.push({
         id: b.ip, name: b.ip,
         country: b.geo?.country, flag: b.geo?.flag,
-        val: 8, color: '#ef4444', blocked: true, attack: b.attack_type,
+        val: 8, color: '#f43f5e', blocked: true, attack: b.attack_type,
       });
-      links.push({ source: '__host__', target: b.ip, width: 1.5, color: 'rgba(239,68,68,0.6)' });
+      links.push({
+        source: '__host__', target: b.ip, width: 1.5,
+        color: 'rgba(244,63,94,0.55)', attack: true,
+      });
     }
     return { nodes, links };
-  }, [hostLabel, remotes, blocked]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataSig]);
+
+  // Empty-state message so a lone host node doesn't look broken.
+  const isEmpty = data.nodes.length === 1;
+
+  // Tune the d3-force simulation so satellite nodes spread out around
+  // the host instead of bunching into one tangled blob. We only reheat
+  // when the node count actually grew/shrank (new attacker IP, or one
+  // expired) — not on every poll, which would shake settled positions.
+  const lastNodeCount = useRef<number>(0);
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    try {
+      const n = data.nodes.length;
+      const charge = fg.d3Force?.('charge');
+      if (charge) {
+        charge.strength(-280 - Math.min(900, n * 12));
+        charge.distanceMax?.(800);
+      }
+      const link = fg.d3Force?.('link');
+      if (link) {
+        link.distance(110 + Math.min(160, n * 4)).strength(0.55);
+      }
+      // Only reheat when the node count CHANGED — otherwise we're just
+      // re-confirming the same forces and don't need to disturb the
+      // layout that judges are looking at.
+      if (n !== lastNodeCount.current) {
+        lastNodeCount.current = n;
+        fg.d3ReheatSimulation?.();
+      }
+    } catch {
+      // Different versions of react-force-graph expose different APIs;
+      // failing to tune is non-fatal — defaults still render.
+    }
+  }, [data]);
+
+  // Aggregate stats for the bottom overlay.
+  const totalNodes      = data.nodes.length - 1;  // exclude the host itself
+  const blockedNodes    = data.nodes.filter((n: any) => n.blocked).length;
+  const countriesTotal  = new Set(
+    data.nodes.filter((n: any) => n.country).map((n: any) => n.country)
+  ).size;
+  const topCountry      = (() => {
+    const tally: Record<string, number> = {};
+    for (const n of data.nodes) if (n.country) tally[n.country] = (tally[n.country] || 0) + 1;
+    const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+    return sorted[0]?.[0] || '—';
+  })();
 
   return (
-    <div className="w-full h-full">
+    <div ref={wrapRef} className="relative w-full h-full overflow-hidden rounded-xl"
+      style={{
+        // Subtle radar grid + radial vignette behind the canvas.
+        backgroundImage:
+          'radial-gradient(ellipse at center, rgba(16,185,129,0.06) 0%, transparent 60%),' +
+          'linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),' +
+          'linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)',
+        backgroundSize: 'auto, 40px 40px, 40px 40px',
+      }}>
+      {isEmpty && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none text-center px-6">
+          <GitFork size={32} className="text-husn-text-3 opacity-40 mb-3"/>
+          <p className="text-[12px] text-husn-text-3 max-w-sm">
+            No remote connections yet. As soon as traffic flows or an IP is blocked,
+            it'll appear as a satellite around your host.
+          </p>
+        </div>
+      )}
+
+      {/* Legend overlay (top-left) */}
+      <div className="absolute top-3 left-3 z-10 husn-card px-3 py-2 text-[10px] uppercase tracking-[0.14em] space-y-1 pointer-events-none">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]"/>
+          <span className="text-husn-text-2">Host</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ background: '#10b981', boxShadow: '0 0 6px #10b981' }}/>
+          <span className="text-husn-text-2">SA peer</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ background: '#a1a1aa' }}/>
+          <span className="text-husn-text-2">Remote</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ background: '#f43f5e', boxShadow: '0 0 6px #f43f5e' }}/>
+          <span className="text-husn-text-2">Blocked</span>
+        </div>
+      </div>
+
+      {/* Reset-zoom button (top-right) */}
+      <button
+        onClick={() => { try { fgRef.current?.zoomToFit(400, 60); } catch {} }}
+        className="absolute top-3 right-3 z-10 husn-btn-ghost text-[10px] uppercase tracking-[0.14em]"
+      >
+        Fit
+      </button>
+
+      {/* Live stats strip — bottom */}
+      <div className="absolute bottom-3 left-3 right-3 z-10 husn-card px-4 py-2 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] pointer-events-none">
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-husn-success animate-pulse"/>
+            <span className="text-husn-text-2">Live topology</span>
+          </span>
+          <span className="text-husn-border-2">·</span>
+          <span><span className="text-white font-semibold">{totalNodes}</span> <span className="text-husn-text-3">nodes</span></span>
+          <span className="text-husn-border-2">·</span>
+          <span><span className="text-husn-danger font-semibold">{blockedNodes}</span> <span className="text-husn-text-3">blocked</span></span>
+          <span className="text-husn-border-2">·</span>
+          <span><span className="text-white font-semibold">{countriesTotal}</span> <span className="text-husn-text-3">countries</span></span>
+        </div>
+        <span className="text-husn-text-3">
+          top: <span className="text-husn-text-2">{topCountry}</span>
+        </span>
+      </div>
+
+      {/* Click-to-inspect side drawer */}
+      {selectedNode && (
+        <div className="absolute top-16 right-3 z-20 husn-card p-4 w-72 pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-husn-text-3">Node</div>
+              <div className="text-white font-mono text-[14px] mt-1 break-all">{selectedNode.name}</div>
+            </div>
+            <button onClick={() => setSelectedNode(null)} className="text-husn-text-3 hover:text-white p-1">
+              <XClose size={14}/>
+            </button>
+          </div>
+          <div className="space-y-1.5 text-[11px] mt-3">
+            {selectedNode.country && (
+              <div className="flex justify-between">
+                <span className="text-husn-text-3">Country</span>
+                <span className="text-white">{selectedNode.flag} {selectedNode.country}</span>
+              </div>
+            )}
+            {selectedNode.count !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-husn-text-3">Connections</span>
+                <span className="text-white">{selectedNode.count}</span>
+              </div>
+            )}
+            {selectedNode.blocked && (
+              <div className="flex justify-between">
+                <span className="text-husn-text-3">Status</span>
+                <span className="text-husn-danger uppercase tracking-[0.14em]">Blocked{selectedNode.attack ? ` · ${selectedNode.attack}` : ''}</span>
+              </div>
+            )}
+          </div>
+          {selectedNode.id !== '__host__' && onInvestigate && (
+            <button
+              onClick={() => { onInvestigate(selectedNode.id); setSelectedNode(null); }}
+              className="mt-4 w-full husn-btn-primary text-[11px] uppercase tracking-[0.14em]"
+            >
+              Investigate
+            </button>
+          )}
+        </div>
+      )}
+
       <ForceGraph2D
         ref={fgRef}
         graphData={data}
-        backgroundColor="#151a26"
-        nodeRelSize={4}
+        width={size.w}
+        height={size.h}
+        backgroundColor="rgba(0,0,0,0)"
+        // Larger collision radius — d3-force keeps nodes this far apart
+        // even when two link endpoints want to overlap. Bumped from 4 to
+        // 9 so IPs no longer pile on top of each other.
+        nodeRelSize={9}
         linkWidth={(l: any) => l.width || 1}
         linkColor={(l: any) => l.color || 'rgba(255,255,255,0.2)'}
-        linkDirectionalParticles={(l: any) => l.color?.includes('239') ? 2 : 0}
+        // Animate red particles on blocked-link traffic. One particle
+        // per link is enough visually; more starts to lag at >20 nodes.
+        linkDirectionalParticles={(l: any) => (l.attack ? 1 : 0)}
         linkDirectionalParticleSpeed={0.005}
-        linkDirectionalParticleColor={() => '#ef4444'}
+        linkDirectionalParticleWidth={2}
+        linkDirectionalParticleColor={() => '#f43f5e'}
+        // Auto-fit ONLY on the very first settle. After that, the user's
+        // pan/zoom and any reheat from new nodes shouldn't reset the
+        // camera — that's what makes the topology jump every poll.
+        onEngineStop={() => {
+          if (didInitialFit.current) return;
+          didInitialFit.current = true;
+          try { fgRef.current?.zoomToFit(400, 60); } catch {}
+        }}
+        onNodeClick={(node: any) => setSelectedNode(node)}
+        onBackgroundClick={() => setSelectedNode(null)}
         nodeCanvasObject={(node: any, ctx: any, scale: number) => {
-          const r = (node.val || 6);
-          ctx.fillStyle = node.color || '#fff';
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
-          ctx.fill();
-          if (node.blocked) {
-            ctx.strokeStyle = '#ef4444';
-            ctx.lineWidth = 2 / scale;
-            ctx.beginPath();
-            ctx.arc(node.x, node.y, r + 3, 0, 2 * Math.PI);
-            ctx.stroke();
+          // Guard: force-graph may invoke this before the layout has
+          // assigned (x, y). createRadialGradient throws on undefined
+          // coords and that takes down the whole React tree.
+          if (typeof node.x !== 'number' || typeof node.y !== 'number'
+              || !isFinite(node.x) || !isFinite(node.y)) {
+            return;
           }
-          if (scale > 1.2) {
-            ctx.font = `${10 / scale}px Inter, sans-serif`;
-            ctx.fillStyle = '#e6f1ff';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            const label = node.id === '__host__' ? `⌂ ${node.name}` : `${node.flag || ''} ${node.name}`;
-            ctx.fillText(label, node.x, node.y + r + 10 / scale);
+          const safeScale = (typeof scale === 'number' && scale > 0) ? scale : 1;
+
+          try {
+            const isHost = node.id === '__host__';
+            const r = Math.max(2, Number(node.val) || 6);
+            const t = pulse.current || 0;
+
+            // Radar rings around the host — 2 rings (was 3), no shadow.
+            if (isHost) {
+              const baseR = 28;
+              for (let i = 0; i < 2; i++) {
+                const phase = (t + i * 2.6) % (Math.PI * 2);
+                const ring  = phase / (Math.PI * 2);   // 0..1
+                const radius = baseR + ring * 90;
+                const alpha  = 0.30 * (1 - ring);
+                ctx.strokeStyle = `rgba(16,185,129,${alpha.toFixed(2)})`;
+                ctx.lineWidth   = 1 / safeScale;
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+                ctx.stroke();
+              }
+            }
+
+            // Static halo for host + blocked (no per-frame shadow blur).
+            // Drawn as a single faded ring stamped behind the node — much
+            // cheaper than ctx.shadowBlur which forces a full canvas
+            // composite every frame.
+            if (isHost || node.blocked) {
+              const haloR = r + 6 / safeScale;
+              const haloAlpha = isHost ? 0.22 : 0.30;
+              ctx.fillStyle = isHost
+                ? `rgba(255,255,255,${haloAlpha})`
+                : `rgba(244,63,94,${haloAlpha})`;
+              ctx.beginPath();
+              ctx.arc(node.x, node.y, haloR, 0, 2 * Math.PI);
+              ctx.fill();
+            }
+
+            // Node disc
+            ctx.fillStyle = node.color || '#fff';
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Host orb highlight — flat colour overlay (no gradient
+            // allocation per frame). Equally premium-looking, ~10× faster.
+            if (isHost) {
+              ctx.fillStyle = 'rgba(255,255,255,0.45)';
+              ctx.beginPath();
+              ctx.arc(node.x - r * 0.3, node.y - r * 0.3, r * 0.45, 0, 2 * Math.PI);
+              ctx.fill();
+            }
+
+            // Blocked border ring
+            if (node.blocked) {
+              ctx.strokeStyle = '#f43f5e';
+              ctx.lineWidth = 1.5 / safeScale;
+              ctx.beginPath();
+              ctx.arc(node.x, node.y, r + 3 / safeScale, 0, 2 * Math.PI);
+              ctx.stroke();
+            }
+
+            // Labels — drawn on a faint dark pill so neighbouring labels
+            // don't overlap into illegibility on a busy graph.
+            if (isHost || safeScale > 0.9) {
+              const fontSize = Math.max(8, 11 / Math.max(0.7, safeScale));
+              const fontStr = `${isHost ? 'bold ' : ''}${fontSize}px Inter, ui-sans-serif, system-ui, sans-serif`;
+              ctx.font = fontStr;
+              const label = isHost ? `⌂ ${node.name || 'host'}` : `${node.flag || ''} ${node.name || ''}`.trim();
+              const tw = ctx.measureText(label).width;
+              const padX = 4 / safeScale;
+              const padY = 2 / safeScale;
+              const ly = node.y + r + (fontSize * 0.9);
+
+              // Background pill
+              ctx.fillStyle = 'rgba(0,0,0,0.65)';
+              ctx.beginPath();
+              const pillX = node.x - tw / 2 - padX;
+              const pillY = ly - fontSize / 2 - padY;
+              const pillW = tw + padX * 2;
+              const pillH = fontSize + padY * 2;
+              if (typeof (ctx as any).roundRect === 'function') {
+                (ctx as any).roundRect(pillX, pillY, pillW, pillH, 4 / safeScale);
+              } else {
+                ctx.rect(pillX, pillY, pillW, pillH);
+              }
+              ctx.fill();
+
+              // Label text
+              ctx.fillStyle = isHost ? '#ffffff' : '#e4e4e7';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(label, node.x, ly);
+            }
+          } catch {
+            // Single-frame draw error must NEVER take down the topology
+            // tab. force-graph will redraw next frame regardless.
+            ctx.shadowBlur = 0;
           }
         }}
-        nodeLabel={(n: any) => `<b>${n.name}</b>${n.country ? `<br/>${n.flag} ${n.country}` : ''}${n.count ? `<br/>${n.count} connections` : ''}${n.blocked ? `<br/><span style="color:#ef4444">BLOCKED${n.attack ? ' · ' + n.attack : ''}</span>` : ''}`}
-        cooldownTicks={80}
-        d3AlphaDecay={0.04}
-        d3VelocityDecay={0.4}
+        nodePointerAreaPaint={(node: any, color: string, ctx: any) => {
+          if (typeof node.x !== 'number' || typeof node.y !== 'number') return;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, (Number(node.val) || 6) + 4, 0, 2 * Math.PI);
+          ctx.fill();
+        }}
+        nodeLabel={(n: any) => {
+          const lines = [`<b style="color:#fff">${n.name}</b>`];
+          if (n.country) lines.push(`${n.flag || '🌐'} ${n.country}`);
+          if (n.count)   lines.push(`${n.count} connection${n.count !== 1 ? 's' : ''}`);
+          if (n.blocked) lines.push(`<span style="color:#f43f5e">BLOCKED${n.attack ? ' · ' + n.attack : ''}</span>`);
+          return `<div style="font-family:Inter,sans-serif;background:#0a0a0a;padding:6px 10px;border:1px solid rgba(255,255,255,0.15);border-radius:6px;font-size:11px;color:#a1a1aa">${lines.join('<br/>')}</div>`;
+        }}
+        cooldownTicks={120}
+        d3AlphaDecay={0.035}
+        d3VelocityDecay={0.45}
       />
     </div>
   );

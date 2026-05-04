@@ -42,7 +42,7 @@ The narrative the system sells:
 
 ### 1. Local demo (Kali / Ubuntu / WSL2 / macOS)
 ```bash
-git clone https://github.com/0x4s3m/husn.git && cd husn
+git clone https://github.com/0x4s3m/manee.git && cd manee
 sudo bash install-manee.sh        # auto-detects OS, installs everything
 python run.py both                # OR start manually
 ```

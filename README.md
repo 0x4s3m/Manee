@@ -40,7 +40,7 @@ The narrative the system sells:
 
 ## Two ways to run it
 
-### 1. Local demo (Kali / Ubuntu / WSL2 / macOS)
+### 1. Local (Kali / Ubuntu / WSL2 / macOS / Any linux)
 ```bash
 git clone https://github.com/0x4s3m/manee.git && cd manee
 sudo bash install-manee.sh        # auto-detects OS, installs everything

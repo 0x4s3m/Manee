@@ -34,7 +34,7 @@ The system is built on a defence-in-depth philosophy: every attack passes throug
 | **Content detection** | 27 compiled regex signatures (SQLi, XSS, RCE, log4shell, Spring4Shell, scanners, weak credentials, LOLBins) |
 | **Active response** | Real-time `iptables -A INPUT -s <ip> -j DROP` (toggleable; off by default) |
 | **Explainability** | SHAP TreeExplainer with per-decision feature importance, surfaced inline in alerts |
-| **SOC chatbot** | Open-Claw-powered assistant grounded in live system snapshot (bilingual EN/AR) |
+| **SOC chatbot** | DeepSeek-powered assistant grounded in live system snapshot (bilingual EN/AR) |
 | **Email-driven SOC** | IMAP-monitored mailbox with sender allowlist and slash-command actions |
 | **Auto Patch** | Static analyzer (13 rules) + LLM-assisted patches with SHA-256-audited backups |
 | **Kill chain visualization** | Live mapping of detections to the seven Lockheed Martin stages |
@@ -42,6 +42,125 @@ The system is built on a defence-in-depth philosophy: every attack passes throug
 | **Self-update** | Git-based with safety gates against dirty trees and non-fast-forward pulls |
 | **Bilingual UI** | Full English/Arabic with RTL layout, Noto Sans Arabic typography |
 | **Mobile responsive** | Drawer sidebar on phones, slim icon column on tablets, full layout on desktop |
+
+---
+
+## The Four AI Agents
+
+Manee's intelligence layer is composed of four cooperating agents — each with a distinct role, input source, and output. They run in the same process but operate independently, and a single attack typically passes through two or three of them in sequence.
+
+### 1. Detection AI — *behavioural*
+
+The first line of defense. A hybrid model that scores every network flow on its statistical shape, regardless of payload content.
+
+| Aspect | Detail |
+|---|---|
+| **Model** | XGBoost classifier + Isolation Forest anomaly detector + SHAP TreeExplainer |
+| **Input** | The 17-feature vector computed from packet timing, length distributions, and TCP flag counts |
+| **Output** | `{label, confidence, anomaly_score, severity}` — labels include `BENIGN`, `DDoS`, `PortScan`, `Brute Force`, `Infiltration`, `Web Attack` |
+| **Trigger** | Every flow that completes or accumulates ≥ 12 packets, scored by the sniffer's janitor thread every few seconds |
+| **Strength** | Catches **behavioural** anomalies — traffic that *looks* wrong even when its content is unknown (zero-days, novel scan techniques, distributed attacks) |
+| **Limitation** | Blind to **content** — a single curl with a malicious payload looks identical, statistically, to a normal request |
+| **Files** | `backend/husn/src/ai/model.py` · `backend/husn/src/ai/data_gen.py` |
+
+This is the agent that earns the "AI" in *Intelligent Cyber Defense*. It runs locally on the box, has no external dependencies at inference time, and its decisions are fully explainable via SHAP feature contributions surfaced in the dashboard and embedded inline in alert emails.
+
+### 2. Payload Scanner — *content-aware*
+
+The second line of defense. A library of compiled regular expressions matched against the first 128 bytes of every flow's payload.
+
+| Aspect | Detail |
+|---|---|
+| **Engine** | Pure-Python `re` module with 27 pre-compiled patterns |
+| **Input** | The first non-empty payload byte sequence captured per flow, rendered as printable ASCII |
+| **Output** | `{pattern_name, attack_type, severity, confidence}` — or `None` |
+| **Trigger** | Inline with `Detection AI` — runs on the same flow batch and overrides the verdict if any pattern matches |
+| **Strength** | Catches **content-anomalous** attacks the statistical model cannot see — log4shell, SQLi, XSS, RCE, scanner UAs, weak credentials, LOLBins, webshells |
+| **Coverage** | 14 vulnerability families spanning OWASP Top 10 and ~10 high-impact CVEs (see [Threat Intelligence](#threat-intelligence)) |
+| **Files** | `backend/husn/src/ai/signatures.py` |
+
+A signature match is a **deterministic ground truth** — the regex either matched or didn't. When it fires, it overrides whatever the statistical model said. This is the layer that catches a polite-looking HTTP request whose body contains `${jndi:ldap://...}`.
+
+### 3. SOC Analyst — *conversational*
+
+A DeepSeek-powered assistant grounded in the system's live state. Operators can talk to it through two interfaces: the dashboard's Chat tab, or by email.
+
+| Aspect | Detail |
+|---|---|
+| **Model** | `deepseek-chat` via the OpenAI-compatible SDK (provider-swappable in one config line) |
+| **Input** | Operator question + a freshly-built system prompt containing the live snapshot (uptime, blocked IPs, sniffer state, recent attack labels, top countries) |
+| **Output** | Bilingual markdown reply (responds in the language the operator wrote in) |
+| **Trigger** | UI chat tab message, or an inbox email from an authorized sender |
+| **Memory** | Per-session sliding window of the last six turns. Email sessions are keyed on the sender's address, so threading retains context |
+| **Action capabilities** | Through email **slash commands**: `/block`, `/whitelist`, `/blacklist`, `/unblock`, `/investigate`, `/scan`, `/status`, `/pause` |
+| **Strength** | Translates raw telemetry into actionable advice; can take real defensive actions when invoked through the slash-command interface |
+| **Files** | `backend/husn/src/chat/chatbot.py` · `backend/husn/src/notify/inbox.py` |
+
+The system prompt explicitly forbids fabrication: the model is told to reference only numbers from the live snapshot, never invent IPs or counts, and always provide a concrete dashboard step or curl command instead of claiming to have done something itself.
+
+### 4. Auto Patch Advisor — *code-aware*
+
+The same DeepSeek model, but operating on a fundamentally different surface: the project's own source code.
+
+| Aspect | Detail |
+|---|---|
+| **Model** | `deepseek-chat` with a hardened 11-rule system prompt and project invariants encoded in the user prompt |
+| **Input** | A flagged source line, the file's docstring + imports, the full enclosing function block (with the target line marked `>>`), the rule that fired, and any operator notes |
+| **Output** | A single replacement line — or the literal string `NEEDS_MULTI_LINE` if the model judges the patch unsafe at one-line granularity |
+| **Trigger** | Operator clicks **Ask LLM** on an Auto Patch finding |
+| **Safety contract** | Eleven absolute rules in the system prompt: must match indentation exactly, no new imports, no signature changes, never remove security operations (bcrypt, JWT verify, allowlist checks), refuse with `NEEDS_MULTI_LINE` when uncertain |
+| **Approval gate** | Output is **never auto-applied** — it's returned to the operator who chooses Apply, Edit, or Dismiss. Even bulk-fix mode requires an explicit confirmation modal |
+| **Backstop** | Every write is validated post-hoc with `ast.parse()` and **automatically reverted from backup** if syntax breaks. Every action is hashed (SHA-256 before and after) and recorded to an append-only audit log |
+| **Files** | `backend/husn/src/autopatch/engine.py` · `backend/husn/src/autopatch/rules.py` |
+
+The Advisor is the only agent whose output can permanently modify production code — which is why it has the strictest safety contract. It's deliberately conservative: it would rather refuse and let a human handle the patch than ship a broken file.
+
+### How they work together
+
+```
+                    ┌──────────────────────┐
+                    │  Live network flow   │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+            ┌─────────────────────────────────────┐
+            │  ① Detection AI (behavioural)        │
+            │     XGBoost + IsolationForest        │
+            └──────────────┬──────────────────────┘
+                           │
+                           ▼  (verdict + confidence)
+            ┌─────────────────────────────────────┐
+            │  ② Payload Scanner (content)         │
+            │     27 regex signatures              │
+            │     ✓ overrides ① on match           │
+            └──────────────┬──────────────────────┘
+                           │
+                           ▼  (final verdict)
+            ┌─────────────────────────────────────┐
+            │  Response Pipeline                   │
+            │  iptables · email · audit log        │
+            └──────────────┬──────────────────────┘
+                           │
+                           ▼
+            ┌─────────────────────────────────────┐
+            │  ③ SOC Analyst (on demand)           │
+            │     Operator asks → live answer      │
+            │     Email slash commands             │
+            └─────────────────────────────────────┘
+
+            ┌─────────────────────────────────────┐
+            │  ④ Auto Patch Advisor (on demand)    │
+            │     Operator asks → safe one-line    │
+            │     fix proposal (never auto-applied)│
+            └─────────────────────────────────────┘
+```
+
+| Agent | Operates on | Always-on? | Acts autonomously? |
+|---|---|---|---|
+| Detection AI | network flows | yes | yes (triggers blocks) |
+| Payload Scanner | flow payloads | yes | yes (triggers blocks) |
+| SOC Analyst | operator messages | on demand | only when given slash commands |
+| Auto Patch Advisor | source code | on demand | **never** — admin must approve |
 
 ---
 
@@ -68,7 +187,7 @@ The system is built on a defence-in-depth philosophy: every attack passes throug
 │                                                                         │
 │  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
 │  │ Sniffer     │  │ Honeypot     │  │ Auth         │  │ LLM client   │ │
-│  │ Scapy live  │  │ Socket trap  │  │ bcrypt + JWT │  │ Open-Claw     │ │
+│  │ Scapy live  │  │ Socket trap  │  │ bcrypt + JWT │  │ DeepSeek     │ │
 │  └─────────────┘  └──────────────┘  └──────────────┘  └──────────────┘ │
 └─────────────────────────────────────────────────────────────────────────┘
                   │
@@ -135,7 +254,7 @@ sudo nano /etc/systemd/system/husn-backend.service.d/secrets.conf
 
 ```
 [Service]
-Environment=HUSN_Open-Claw_KEY=sk-...
+Environment=HUSN_DEEPSEEK_KEY=sk-...
 Environment=HUSN_SMTP_PASSWORD=...
 ```
 
@@ -292,7 +411,7 @@ A static analyzer for the project's own source code, paired with an LLM-assisted
 3. Findings appear in the dashboard with a side-by-side diff view
 4. Administrator chooses one of three actions per finding:
    - **Apply** — writes the templated fix
-   - **Ask LLM** — Open-Claw proposes a custom one-line patch (governed by an 11-rule safety prompt)
+   - **Ask LLM** — DeepSeek proposes a custom one-line patch (governed by an 11-rule safety prompt)
    - **Manual edit** — admin writes the replacement directly
 5. Every write creates a timestamped backup (`<file>.husn-bak.<unix-ts>`)
 6. SHA-256 of before and after recorded in append-only audit log
@@ -375,9 +494,9 @@ inbox:
 
 # Language model
 llm:
-  provider: Open-Claw
-  model: Open-Claw-chat
-  api_key_env: HUSN_Open-Claw_KEY
+  provider: deepseek
+  model: deepseek-chat
+  api_key_env: HUSN_DEEPSEEK_KEY
   temperature: 0.4
   max_tokens: 1024
 
@@ -478,7 +597,7 @@ manee/
 | **Backend** | Python 3.9+ · FastAPI · Uvicorn · APScheduler · PyYAML · PyJWT · bcrypt |
 | **Machine learning** | XGBoost · scikit-learn (Isolation Forest) · SHAP · NumPy · pandas |
 | **Network** | Scapy (raw capture) · stdlib `smtplib`/`imaplib`/`socket` |
-| **LLM integration** | OpenAI Python SDK pointed at Open-Claw (provider-swappable) |
+| **LLM integration** | OpenAI Python SDK pointed at DeepSeek (provider-swappable) |
 | **Charts** | Matplotlib (Agg backend, headless SHAP renders for email) |
 | **Frontend** | React 19 · TypeScript · Vite 8 · Tailwind CSS v4 |
 | **Animations** | Framer Motion · custom canvas (radar topology) |

@@ -34,7 +34,7 @@ The system is built on a defence-in-depth philosophy: every attack passes throug
 | **Content detection** | 27 compiled regex signatures (SQLi, XSS, RCE, log4shell, Spring4Shell, scanners, weak credentials, LOLBins) |
 | **Active response** | Real-time `iptables -A INPUT -s <ip> -j DROP` (toggleable; off by default) |
 | **Explainability** | SHAP TreeExplainer with per-decision feature importance, surfaced inline in alerts |
-| **SOC chatbot** | DeepSeek-powered assistant grounded in live system snapshot (bilingual EN/AR) |
+| **SOC chatbot** | ML language model assistant grounded in live system snapshot (bilingual EN/AR) |
 | **Email-driven SOC** | IMAP-monitored mailbox with sender allowlist and slash-command actions |
 | **Auto Patch** | Static analyzer (13 rules) + LLM-assisted patches with SHA-256-audited backups |
 | **Kill chain visualization** | Live mapping of detections to the seven Lockheed Martin stages |
@@ -83,11 +83,11 @@ A signature match is a **deterministic ground truth** — the regex either match
 
 ### 3. SOC Analyst — *conversational*
 
-A DeepSeek-powered assistant grounded in the system's live state. Operators can talk to it through two interfaces: the dashboard's Chat tab, or by email.
+A machine-learning language model assistant grounded in the system's live state. Operators can talk to it through two interfaces: the dashboard's Chat tab, or by email.
 
 | Aspect | Detail |
 |---|---|
-| **Model** | `deepseek-chat` via the OpenAI-compatible SDK (provider-swappable in one config line) |
+| **Model** | OpenAI-compatible language model (provider-swappable in one config line) |
 | **Input** | Operator question + a freshly-built system prompt containing the live snapshot (uptime, blocked IPs, sniffer state, recent attack labels, top countries) |
 | **Output** | Bilingual markdown reply (responds in the language the operator wrote in) |
 | **Trigger** | UI chat tab message, or an inbox email from an authorized sender |
@@ -100,11 +100,11 @@ The system prompt explicitly forbids fabrication: the model is told to reference
 
 ### 4. Auto Patch Advisor — *code-aware*
 
-The same DeepSeek model, but operating on a fundamentally different surface: the project's own source code.
+The same machine-learning language model, but operating on a fundamentally different surface: the project's own source code.
 
 | Aspect | Detail |
 |---|---|
-| **Model** | `deepseek-chat` with a hardened 11-rule system prompt and project invariants encoded in the user prompt |
+| **Model** | OpenAI-compatible language model with a hardened 11-rule system prompt and project invariants encoded in the user prompt |
 | **Input** | A flagged source line, the file's docstring + imports, the full enclosing function block (with the target line marked `>>`), the rule that fired, and any operator notes |
 | **Output** | A single replacement line — or the literal string `NEEDS_MULTI_LINE` if the model judges the patch unsafe at one-line granularity |
 | **Trigger** | Operator clicks **Ask LLM** on an Auto Patch finding |
@@ -187,7 +187,7 @@ The Advisor is the only agent whose output can permanently modify production cod
 │                                                                         │
 │  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
 │  │ Sniffer     │  │ Honeypot     │  │ Auth         │  │ LLM client   │ │
-│  │ Scapy live  │  │ Socket trap  │  │ bcrypt + JWT │  │ DeepSeek     │ │
+│  │ Scapy live  │  │ Socket trap  │  │ bcrypt + JWT │  │ Lang. model  │ │
 │  └─────────────┘  └──────────────┘  └──────────────┘  └──────────────┘ │
 └─────────────────────────────────────────────────────────────────────────┘
                   │
@@ -368,9 +368,30 @@ When a new high-impact CVE is published, the integration workflow is:
 4. **Validation** — the rule is tested against the public PoC and against a benign-traffic corpus to verify zero false positives.
 5. **Deployment** — pushed via the standard update channel (`updater` service) — no service restart required.
 
-### Roadmap: CVE feed automation
+### Live CVE-aware learning
 
-Planned for the next major release: an automated CVE intake worker that polls the [NVD JSON 2.0 feed](https://nvd.nist.gov/developers/vulnerabilities) for new entries with **CVSS ≥ 7.0** in active exploit categories (RCE, deserialization, injection), proposes draft signature rules via the LLM, and queues them for administrator review through the **Auto Patch** interface — closing the loop from public disclosure to live detection in under an hour.
+Manee includes a built-in **CVE intelligence agent** that polls the public [NVD JSON 2.0 feed](https://nvd.nist.gov/developers/vulnerabilities) every six hours and ingests new vulnerabilities matching three criteria:
+
+1. Published in the last seven days
+2. CVSS v3 base score ≥ 7.0 (High or Critical)
+3. Description matches an active threat-class keyword (RCE, injection, deserialization, traversal, SSRF, XXE, JNDI, request smuggling, file upload, …)
+
+Each ingested CVE is stored in `/etc/husn/cve-feed.json` with its severity score, summary, source link (`https://www.cve.org/CVERecord?id=CVE-XXXX-XXXXX`), and the keywords that matched. The intel database is **purely additive** — it never auto-blocks traffic. The operator reviews entries through the dashboard and **promotes** any high-confidence entry to a live signature rule via Auto Patch, closing the loop from public disclosure to active detection in under an hour.
+
+```
+NVD feed ──► [CVSS filter] ──► [keyword match] ──► /etc/husn/cve-feed.json
+                                                            │
+                                                            ▼
+                                                   Operator review
+                                                            │
+                                                            ▼
+                                              Promote to signatures.py
+                                                            │
+                                                            ▼
+                                                   Live detection
+```
+
+API endpoints: `GET /intel/cves`, `GET /intel/cves/{id}`, `POST /intel/cves/refresh`, `POST /intel/cves/{id}/promote`. Files: `backend/husn/src/intel/cve_feed.py`.
 
 ---
 
@@ -411,7 +432,7 @@ A static analyzer for the project's own source code, paired with an LLM-assisted
 3. Findings appear in the dashboard with a side-by-side diff view
 4. Administrator chooses one of three actions per finding:
    - **Apply** — writes the templated fix
-   - **Ask LLM** — DeepSeek proposes a custom one-line patch (governed by an 11-rule safety prompt)
+   - **Ask LLM** — the machine-learning model proposes a custom one-line patch (governed by an 11-rule safety prompt)
    - **Manual edit** — admin writes the replacement directly
 5. Every write creates a timestamped backup (`<file>.husn-bak.<unix-ts>`)
 6. SHA-256 of before and after recorded in append-only audit log
@@ -597,7 +618,7 @@ manee/
 | **Backend** | Python 3.9+ · FastAPI · Uvicorn · APScheduler · PyYAML · PyJWT · bcrypt |
 | **Machine learning** | XGBoost · scikit-learn (Isolation Forest) · SHAP · NumPy · pandas |
 | **Network** | Scapy (raw capture) · stdlib `smtplib`/`imaplib`/`socket` |
-| **LLM integration** | OpenAI Python SDK pointed at DeepSeek (provider-swappable) |
+| **LLM integration** | OpenAI-compatible Python SDK (provider-swappable language model) |
 | **Charts** | Matplotlib (Agg backend, headless SHAP renders for email) |
 | **Frontend** | React 19 · TypeScript · Vite 8 · Tailwind CSS v4 |
 | **Animations** | Framer Motion · custom canvas (radar topology) |
@@ -691,10 +712,21 @@ sudo systemctl restart husn-backend
 
 ---
 
+## Team
+
+Manee is built and maintained by:
+
+| Name | Role | X (Twitter) |
+|---|---|---|
+| **Asim Alharbi** | Architecture · ML training · Backend | [@w_4nj](https://x.com/w_4nj) |
+| **Abdulaziz Alodan** | ML training · Frontend · UX | [@al0dan](https://x.com/al0dan) |
+
+The detection model (`XGBoost` classifier + `IsolationForest` anomaly detector) was trained on a custom-built dataset of **1,000+ flow samples** spanning every attack class Manee detects — DDoS, port scans, brute-force credential stuffing, infiltration / C2 beaconing, and a broad mix of web attacks. Each sample was hand-labeled and balanced to prevent any single class from dominating the model's predictions.
+
 ## Acknowledgments
 
 Built for the **DefensThon 2026** national cybersecurity competition (Saudi Arabia).
-This project would not exist without the open-source work of the FastAPI, scikit-learn, XGBoost, SHAP, React, Tailwind, and Scapy communities.
+This project would not exist without the open-source work of the FastAPI, scikit-learn, XGBoost, SHAP, React, Tailwind, and Scapy communities, and the public CVE feed maintained by NIST and MITRE.
 
 ---
 

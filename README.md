@@ -34,7 +34,7 @@ The system is built on a defence-in-depth philosophy: every attack passes throug
 | **Content detection** | 27 compiled regex signatures (SQLi, XSS, RCE, log4shell, Spring4Shell, scanners, weak credentials, LOLBins) |
 | **Active response** | Real-time `iptables -A INPUT -s <ip> -j DROP` (toggleable; off by default) |
 | **Explainability** | SHAP TreeExplainer with per-decision feature importance, surfaced inline in alerts |
-| **SOC chatbot** | DeepSeek-powered assistant grounded in live system snapshot (bilingual EN/AR) |
+| **SOC chatbot** | Open-Claw-powered assistant grounded in live system snapshot (bilingual EN/AR) |
 | **Email-driven SOC** | IMAP-monitored mailbox with sender allowlist and slash-command actions |
 | **Auto Patch** | Static analyzer (13 rules) + LLM-assisted patches with SHA-256-audited backups |
 | **Kill chain visualization** | Live mapping of detections to the seven Lockheed Martin stages |
@@ -68,7 +68,7 @@ The system is built on a defence-in-depth philosophy: every attack passes throug
 │                                                                         │
 │  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
 │  │ Sniffer     │  │ Honeypot     │  │ Auth         │  │ LLM client   │ │
-│  │ Scapy live  │  │ Socket trap  │  │ bcrypt + JWT │  │ DeepSeek     │ │
+│  │ Scapy live  │  │ Socket trap  │  │ bcrypt + JWT │  │ Open-Claw     │ │
 │  └─────────────┘  └──────────────┘  └──────────────┘  └──────────────┘ │
 └─────────────────────────────────────────────────────────────────────────┘
                   │
@@ -135,7 +135,7 @@ sudo nano /etc/systemd/system/husn-backend.service.d/secrets.conf
 
 ```
 [Service]
-Environment=HUSN_DEEPSEEK_KEY=sk-...
+Environment=HUSN_Open-Claw_KEY=sk-...
 Environment=HUSN_SMTP_PASSWORD=...
 ```
 
@@ -292,7 +292,7 @@ A static analyzer for the project's own source code, paired with an LLM-assisted
 3. Findings appear in the dashboard with a side-by-side diff view
 4. Administrator chooses one of three actions per finding:
    - **Apply** — writes the templated fix
-   - **Ask LLM** — DeepSeek proposes a custom one-line patch (governed by an 11-rule safety prompt)
+   - **Ask LLM** — Open-Claw proposes a custom one-line patch (governed by an 11-rule safety prompt)
    - **Manual edit** — admin writes the replacement directly
 5. Every write creates a timestamped backup (`<file>.husn-bak.<unix-ts>`)
 6. SHA-256 of before and after recorded in append-only audit log
@@ -375,9 +375,9 @@ inbox:
 
 # Language model
 llm:
-  provider: deepseek
-  model: deepseek-chat
-  api_key_env: HUSN_DEEPSEEK_KEY
+  provider: Open-Claw
+  model: Open-Claw-chat
+  api_key_env: HUSN_Open-Claw_KEY
   temperature: 0.4
   max_tokens: 1024
 
@@ -478,7 +478,7 @@ manee/
 | **Backend** | Python 3.9+ · FastAPI · Uvicorn · APScheduler · PyYAML · PyJWT · bcrypt |
 | **Machine learning** | XGBoost · scikit-learn (Isolation Forest) · SHAP · NumPy · pandas |
 | **Network** | Scapy (raw capture) · stdlib `smtplib`/`imaplib`/`socket` |
-| **LLM integration** | OpenAI Python SDK pointed at DeepSeek (provider-swappable) |
+| **LLM integration** | OpenAI Python SDK pointed at Open-Claw (provider-swappable) |
 | **Charts** | Matplotlib (Agg backend, headless SHAP renders for email) |
 | **Frontend** | React 19 · TypeScript · Vite 8 · Tailwind CSS v4 |
 | **Animations** | Framer Motion · custom canvas (radar topology) |
